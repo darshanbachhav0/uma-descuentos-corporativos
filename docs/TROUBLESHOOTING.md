@@ -13,6 +13,7 @@
 | Archivos no se procesan | Revise propiedad, permisos, PDF/JPEG/PNG, tamaño y máximo de diez archivos |
 | Otro convenio bloquea envío | Especifique el convenio en su sección obligatoria |
 | No llega correo | Revise pausa, cuota, cola, disparador del propietario y spam; no cambie manualmente SENT a PENDING |
+| Correo legítimo aparece en Spam de Gmail | Verifique el remitente y el aviso de Gmail; el destinatario puede usar No es spam y agregar el contacto. Consulte [EMAIL_DELIVERY.md](EMAIL_DELIVERY.md); SENT no garantiza Recibidos |
 | UNCERTAIN | Verificación manual del propietario antes de confirmar o reenviar |
 | Descuento no aparece en SIGU | El sistema no escribe en SIGU; Tesorería debe registrar el beneficio y confirmar ese paso |
 | Excel devuelve error | Revise permiso sobre la carpeta de exportaciones y límite de exportación de Google; pruebe menos filas |

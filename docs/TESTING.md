@@ -46,3 +46,5 @@ También se comprueban orígenes exactos, rechazo de funciones arbitrarias en el
 Use un expediente ficticio y un buzón real bajo su control, escrito en Forms. No se introduce un destinatario fijo de prueba en el código. Nunca registre una aprobación que afirme un descuento real en SIGU para un estudiante de producción si Tesorería no lo confirmó.
 
 `MailApp.sendEmail` no devuelve un acuse de entrega. Compruebe recepción/spam en el buzón de prueba. No marque estas pruebas reales como aprobadas basándose solo en mocks, HTTP 200 del sitio estático o éxito de compilación.
+
+Las pruebas de `tests/email.test.cjs` verifican que se conserva el texto requerido de aprobación, la coincidencia entre texto plano y HTML, los enlaces seguros de subsanación, el escape de HTML/atributos, el contacto visible, el registro del cuerpo efectivo, la actualización única de mensajes pendientes y el límite de tres mensajes por ejecución sin duplicados. Los mensajes SENT no se reenvían. Estas pruebas no miden reputación ni clasificación de Gmail. Consulte [EMAIL_DELIVERY.md](EMAIL_DELIVERY.md).

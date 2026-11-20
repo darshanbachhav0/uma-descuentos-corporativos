@@ -4,16 +4,34 @@ function approvedEmail_(a) {
 function observedEmail_(a,link) {
   return {subject:'Observaciones a su solicitud de descuento corporativo — UMA',body:'Estimado/a '+a.name+':\n\nHemos revisado su solicitud '+a.id+' de descuento corporativo ('+a.discount+').\n\nObservación: '+a.category+'\n'+a.observation+'\n\nInstrucciones para subsanar:\n'+a.instructions+'\n\nPresente sus documentos corregidos en el siguiente enlace seguro:\n'+link+'\n\nEl enlace vence el '+a.correctionExpiresAt.slice(0,10)+'. Es personal; no lo comparta. Su subsanación se incorporará al mismo expediente y se revisará nuevamente.\n\nAtentamente,\nÁrea de Tesorería\nUniversidad María Auxiliadora'};
 }
+/** Visible context shared by plain text and HTML. No identity numbers or private file links. */
+function deliveryBody_(body,a) {
+  var date=String(a.createdAt||'').slice(0,10);
+  var footer='\n\n---\nReferencia de solicitud: '+a.id+
+    (/^\d{4}-\d{2}-\d{2}$/.test(date)?'\nFecha de presentación (UTC): '+date:'')+
+    '\nRecibe esta notificación porque presentó una solicitud de descuento corporativo a UMA.'+
+    '\nRemitente y contacto de Tesorería: '+UMA.owner+
+    '\nPuede responder a este correo para consultar sobre su solicitud.';
+  // A manually resolved UNCERTAIN send must not acquire repeated footers.
+  body=String(body);return body.slice(-footer.length)===footer?body:body+footer;
+}
 function queueDecisionEmail_(a,type,decisionKey) {
   var key=decisionKey+':EMAIL';if(find_('Correos','key',key))return;
   assert_(validEmail_(a.recipient),'Destinatario inválido');
   assert_([a.institutionalEmail,a.personalEmail].indexOf(a.recipient)>=0,'El destinatario debe proceder del formulario');
   var message=type==='APPROVED'?approvedEmail_(a):observedEmail_(a,correctionUrl_(a));
-  append_('Correos',{key:key,applicationId:a.id,decisionKey:decisionKey,type:type,recipient:a.recipient,subject:message.subject,body:message.body,status:'PENDING',attempts:0,createdAt:now_()});
+  append_('Correos',{key:key,applicationId:a.id,decisionKey:decisionKey,type:type,recipient:a.recipient,subject:message.subject,body:deliveryBody_(message.body,a),status:'PENDING',attempts:0,createdAt:now_()});
 }
 function mailHtml_(body) {
-  var escaped=escapeHtml_(body).replace(/https:\/\/[^\s<]+/g,function(url){return '<a style="color:#e91953" href="'+url+'">'+url+'</a>';}).replace(/\n/g,'<br>');
-  return '<div style="font:16px Arial,sans-serif;color:#252735;max-width:640px;margin:auto"><div style="background:#e91953;color:white;padding:24px;font-size:24px;font-weight:bold">UMA <span style="font-size:14px">Universidad María Auxiliadora</span></div><div style="padding:28px;border:1px solid #e6e2ea">'+escaped+'</div><p style="font-size:12px;color:#666">Área de Tesorería · Notificación de solicitud de descuento corporativo</p></div>';
+  // Tokenize before escaping so query strings are escaped exactly once in both href and label.
+  var html='',last=0,pattern=/https:\/\/[^\s<>"']+/g,match;
+  body=String(body);
+  while((match=pattern.exec(body))!==null){
+    html+=escapeHtml_(body.slice(last,match.index));var url=escapeHtml_(match[0]);
+    html+='<a style="color:#b51042" href="'+url+'">'+url+'</a>';last=pattern.lastIndex;
+  }
+  html+=escapeHtml_(body.slice(last));
+  return '<!doctype html><html lang="es"><head><meta charset="UTF-8"></head><body style="margin:0;padding:24px;background:#fff"><div style="font:16px/1.6 Arial,sans-serif;color:#252735;max-width:640px;border-top:3px solid #e91953;padding-top:20px">'+html.replace(/\n/g,'<br>')+'</div></body></html>';
 }
 /** Install this time-driven trigger while signed in as UMA.owner. */
 function processEmailQueue(e) {
@@ -23,7 +41,8 @@ function processEmailQueue(e) {
     logs.filter(function(m){return m.status==='SENDING';}).forEach(function(m){m.status='UNCERTAIN';m.error='Ejecución interrumpida. Verifique el envío antes de resolver.';put_('Correos',m);var a=application_(m.applicationId);if(a.lastDecisionKey===m.decisionKey){a.emailStatus='UNCERTAIN';saveApplication_(a);}});
     if(cfg.EMAIL_NOTIFICATION_ENABLED!=='true')return {paused:true};
     var sent=0,quota=MailApp.getRemainingDailyQuota();
-    logs.filter(function(m){return m.status==='PENDING';}).slice(0,15).forEach(function(m){
+    // The owner trigger runs every minute. Keep batches small; never create extra mail to warm up.
+    logs.filter(function(m){return m.status==='PENDING';}).slice(0,3).forEach(function(m){
       if(quota<=0)return;
       var a=application_(m.applicationId);
       if(a.lastDecisionKey!==m.decisionKey){
@@ -32,6 +51,8 @@ function processEmailQueue(e) {
         m.status='CANCELLED';m.error='Notificación reemplazada por una decisión posterior';put_('Correos',m);return;
       }
       assert_(validEmail_(m.recipient)&&[a.institutionalEmail,a.personalEmail].indexOf(m.recipient)>=0,'Destinatario de cola inválido');
+      // Upgrade only pending mail, including messages queued before this version. Retain the actual sent text in Correos.
+      m.body=deliveryBody_(m.body,a);
       m.status='SENDING';m.attempts=Number(m.attempts)+1;m.attemptedAt=now_();put_('Correos',m);SpreadsheetApp.flush();
       try{
         MailApp.sendEmail({to:m.recipient,subject:m.subject,body:m.body,htmlBody:mailHtml_(m.body),name:'Tesorería UMA',replyTo:UMA.owner});

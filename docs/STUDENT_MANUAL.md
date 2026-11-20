@@ -6,6 +6,8 @@ En el formulario, ingrese su correo institucional, correo personal opcional, tip
 
 La recepción de la solicitud no implica aprobación del descuento. Tesorería enviará el resultado al correo registrado. Revise también spam.
 
+Las notificaciones salen de **darshanbachhavapp@gmail.com**. Si Gmail envía a Spam un mensaje legítimo sobre su solicitud, verifique esa dirección, pulse **No es spam** y agregue el remitente a sus contactos.
+
 Si recibe una observación, utilice el enlace personal de ese correo. Ingrese el mismo correo institucional y documento y adjunte nuevamente el conjunto completo de archivos corregidos. No cree otra solicitud inicial. Los documentos se incorporan al mismo expediente y las versiones anteriores permanecen en el historial.
 
 El enlace de subsanación vence y no debe compartirse. Si venció, solicite a Tesorería que lo renueve. El correo de aprobación confirma que Tesorería ya registró el descuento en SIGU e incluye las condiciones de pago que debe seguir para conservar el beneficio.
