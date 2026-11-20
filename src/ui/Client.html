@@ -25,6 +25,17 @@ let busyCount = 0, searchTimer, listRequest = 0, previewObjectUrl = null;
 const date = v => v ? new Intl.DateTimeFormat('es-PE', {dateStyle:'short', timeStyle:'short', timeZone:'America/Lima'}).format(new Date(v)) : '—';
 const status = s => `<span class="status ${esc(s)}">${esc(labels[s] || s || '—')}</span>`;
 const issueLines = a => String(a.issues || '').split('\n').map(s => s.trim()).filter(Boolean);
+const initials = n => String(n || '').replace(/^gestión:/, '').split(/[\s._-]+/).filter(Boolean).slice(0, 2).map(v => v[0]).join('').toUpperCase() || '·';
+/** Shows a spinner inside a button while an action runs and prevents double clicks. */
+async function withButton(button, task) {
+  if (!button) return task();
+  button.classList.add('is-loading'); button.disabled = true;
+  try { return await task(); } finally { button.classList.remove('is-loading'); button.disabled = false; }
+}
+function skeletonRows(columns, count = 6) {
+  const cell = i => i === 0 ? '<td><div class="student"><span class="avatar skeleton"></span><div style="flex:1"><span class="skeleton mid"></span><span class="skeleton short" style="margin-top:6px"></span></div></div></td>' : i === columns - 1 ? '<td><span class="skeleton pill"></span></td>' : '<td><span class="skeleton"></span></td>';
+  return Array.from({length:count}, () => `<tr class="loading-row">${Array.from({length:columns}, (_, i) => cell(i)).join('')}</tr>`).join('');
+}
 
 function toast(message, error = false) {
   $('toast').textContent = message; $('toast').className = 'toast' + (error ? ' error' : '');
@@ -67,20 +78,24 @@ function renderCounts(s) {
 function applicationRow(a) {
   const alerts = issueLines(a).length;
   return `<tr data-open="${esc(a.id)}" tabindex="0">
-    <td class="code">${esc(a.id)}</td>
-    <td>${esc(a.name || '—')}<small>${esc(a.identityType)} ${esc(a.identityNumber)} · ${esc(a.school)}</small></td>
-    <td>${esc(a.institutionalEmail || '—')}</td>
-    <td>${esc(a.discount || '—')}</td>
-    <td>${esc(a.submissions || 1)}</td>
-    <td class="nowrap">${date(a.lastSubmissionAt || a.createdAt)}</td>
-    <td>${status(a.status)}${alerts ? `<span class="alert-mark">${alerts} alerta${alerts === 1 ? '' : 's'}</span>` : ''}${a.processingError ? '<span class="alert-mark bad">Error en documentos</span>' : ''}</td></tr>`;
+    <td><div class="student"><span class="avatar">${esc(initials(a.name))}</span><div><strong>${esc(a.name || 'Sin nombre')}</strong><small>${esc(a.identityType)} ${esc(a.identityNumber)} · <span class="code">${esc(a.id)}</span></small></div></div></td>
+    <td data-label="Correo">${esc(a.institutionalEmail || '—')}</td>
+    <td><span class="chip">${esc(a.discount || '—')}</span></td>
+    <td class="num">${esc(a.submissions || 1)}</td>
+    <td data-label="Último envío">${date(a.lastSubmissionAt || a.createdAt)}${Number(a.submissions) > 1 ? `<span class="m-only"> · ${esc(a.submissions)} envíos</span>` : ''}</td>
+    <td>${status(a.status)}${alerts ? `<span class="flag">${alerts} alerta${alerts === 1 ? '' : 's'}</span>` : ''}${a.processingError ? '<span class="flag bad">Error en documentos</span>' : ''}</td></tr>`;
 }
 async function loadApplications() {
-  const request = ++listRequest, result = await api('listApplications', filters(), page, PAGE_SIZE);
+  const request = ++listRequest;
+  if (!$('applicationRows').querySelector('tr[data-open]')) $('applicationRows').innerHTML = skeletonRows(6);
+  else $('applicationRows').style.opacity = '.55';
+  let result;
+  try { result = await api('listApplications', filters(), page, PAGE_SIZE); }
+  finally { if (request === listRequest) $('applicationRows').style.opacity = ''; }
   if (request !== listRequest) return;
   total = result.total; ids = result.ids || result.rows.map(r => r.id);
   renderCounts(result.stats);
-  $('applicationRows').innerHTML = result.rows.length ? result.rows.map(applicationRow).join('') : '<tr><td colspan="7" class="empty">No hay solicitudes en esta vista.</td></tr>';
+  $('applicationRows').innerHTML = result.rows.length ? result.rows.map(applicationRow).join('') : `<tr><td colspan="6" class="empty"><strong>No hay solicitudes aquí</strong>${result.stats.total ? 'Pruebe otra pestaña o cambie los filtros.' : 'Las respuestas del formulario de estudiantes aparecerán automáticamente.'}</td></tr>`;
   $('paginationText').textContent = total ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} de ${total}` : '';
   $('prevPage').disabled = page <= 1; $('nextPage').disabled = page * PAGE_SIZE >= total;
 }
@@ -91,6 +106,7 @@ async function navigate(next) {
   if (view === 'emails') return loadEmails();
   const fixed = VIEWS[view].filter.status;
   $('statusFilter').value = fixed || ''; $('statusFilter').disabled = !!fixed;
+  $('applicationRows').innerHTML = '';
   await loadApplications();
 }
 
@@ -117,30 +133,35 @@ function documentFile(fileId) {
 async function previewDocument(fileId) {
   const id = detail.application.id;
   document.querySelectorAll('[data-preview]').forEach(b => b.closest('li').classList.toggle('active', b.dataset.preview === fileId));
-  const file = await documentFile(fileId);
-  if (!detail || detail.application.id !== id) return;
-  releasePreview(); previewObjectUrl = URL.createObjectURL(fileBlob(file));
-  $('documentPreview').src = previewObjectUrl; $('documentPreview').classList.remove('hidden');
+  $('previewBox').classList.remove('hidden'); $('previewLoading').classList.remove('hidden');
+  try {
+    const file = await documentFile(fileId);
+    if (!detail || detail.application.id !== id) return;
+    releasePreview(); previewObjectUrl = URL.createObjectURL(fileBlob(file));
+    $('documentPreview').src = previewObjectUrl;
+  } finally { $('previewLoading')?.classList.add('hidden'); }
 }
 
 /* ---------- Application ---------- */
 function documentList(documents, current) {
-  if (!documents.length) return '<p class="hint">Sin documentos procesados.</p>';
+  if (!documents.length) return '<p class="note hint">Sin documentos procesados.</p>';
   const revisions = [...new Set(documents.map(d => Number(d.revision)))].sort((a, b) => b - a);
-  return '<ul class="docs">' + revisions.map(rev => `<li class="rev">Revisión ${rev}${rev === Number(current) ? ' (actual)' : ''}</li>` +
-    documents.filter(d => Number(d.revision) === rev).map(d => `<li><span class="name">${d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Sustento'} · ${esc(d.name)}</span><span class="actions"><button class="link" data-preview="${esc(d.fileId)}">Ver</button><button class="link" data-download="${esc(d.fileId)}">Descargar</button></span></li>`).join('')).join('') + '</ul>';
+  return '<ul class="docs">' + revisions.map(rev => `<li class="rev">Revisión ${rev}${rev === Number(current) ? ' · actual' : ''}</li>` +
+    documents.filter(d => Number(d.revision) === rev).map(d => `<li><span class="name"><span class="ui-icon" data-icon="file"></span><span><strong>${d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Documento sustentatorio'}</strong><small class="sub">${esc(d.name)}</small></span></span><span class="actions"><button class="link" data-preview="${esc(d.fileId)}">Ver</button><button class="link" data-download="${esc(d.fileId)}">Descargar</button></span></li>`).join('')).join('') + '</ul>';
 }
 function decisionPanel(a) {
   if (a.status === 'APLICADA_SIGU') return '<p class="note">El descuento ya fue aplicado en SIGU.</p>';
-  if (a.status === 'OBSERVADA') return `<p class="note">Esperando la corrección del estudiante (sigue pendiente). Enlace vigente hasta ${date(a.correctionExpiresAt)}.</p><button id="renewCorrection" class="button">Enviar nuevo enlace de corrección</button>`;
+  if (a.status === 'OBSERVADA') return `<p class="note">Esperando la corrección del estudiante. La solicitud sigue pendiente; el enlace de corrección vence el ${date(a.correctionExpiresAt)}</p><button id="renewCorrection" class="button outline">Enviar nuevo enlace de corrección</button>`;
   if (a.processingError) return '<p class="note">La decisión está bloqueada hasta que se procesen los documentos.</p>';
   return `<form id="reviewForm" class="decision" novalidate>
-    <label class="radio"><input type="radio" name="decision" value="APPROVED"> Aprobar (ya registrado en SIGU)</label>
-    <label class="radio"><input type="radio" name="decision" value="OBSERVED"> Observar</label>
-    <div id="approvalFields" class="hidden"><label class="check"><input type="checkbox" id="siguConfirmed"> Confirmo que el descuento está registrado en SIGU.</label><label for="siguReference">Referencia SIGU (opcional)</label><input type="text" id="siguReference" maxlength="200"></div>
-    <div id="observationFields" class="hidden"><label for="category">Motivo</label><select id="category"><option value="">Seleccione…</option>${boot.categories.map(c => `<option>${esc(c)}</option>`).join('')}</select><label for="observation">Observación para el estudiante</label><textarea id="observation" maxlength="3000"></textarea></div>
+    <div class="decision-choice" role="group" aria-label="Decisión">
+      <button type="button" class="choice approve" data-choice="APPROVED" aria-pressed="false"><span class="ui-icon" data-icon="check"></span>Aprobar</button>
+      <button type="button" class="choice observe" data-choice="OBSERVED" aria-pressed="false"><span class="ui-icon" data-icon="alert"></span>Observar</button>
+    </div>
+    <div id="approvalFields" class="hidden"><label class="check"><input type="checkbox" id="siguConfirmed"> Confirmo que el descuento ya está registrado en SIGU.</label><label for="siguReference">Referencia SIGU (opcional)</label><input type="text" id="siguReference" maxlength="200" placeholder="N.º de operación"></div>
+    <div id="observationFields" class="hidden"><label for="category">Motivo</label><select id="category"><option value="">Seleccione un motivo</option>${boot.categories.map(c => `<option>${esc(c)}</option>`).join('')}</select><label for="observation">Mensaje para el estudiante</label><textarea id="observation" maxlength="3000" placeholder="Qué debe corregir y qué documentos enviar"></textarea></div>
     <button id="submitDecision" class="button primary" type="submit" disabled>Guardar y notificar</button>
-    <p class="hint">Se notificará a ${esc(a.recipient || 'sin correo válido')}.</p>
+    <p class="hint">Se notificará a ${esc(a.recipient || 'sin correo válido')}</p>
   </form>`;
 }
 function renderDetail() {
@@ -148,21 +169,22 @@ function renderDetail() {
   const {application:a, documents, history, observations, emails} = detail, submissions = detail.submissions || [];
   const position = ids.indexOf(a.id), alerts = issueLines(a);
   $('detailTitle').textContent = a.name || 'Sin nombre';
-  $('detailCode').innerHTML = `<span class="code">${esc(a.id)}</span> · revisión ${esc(a.revision)} · ${status(a.status)}`;
+  $('detailAvatar').textContent = initials(a.name);
+  $('detailCode').innerHTML = `<span class="code">${esc(a.id)}</span><span>Revisión ${esc(a.revision)}</span>${status(a.status)}`;
   $('detailPosition').textContent = position >= 0 ? `${position + 1} de ${ids.length}` : '';
   $('prevDetail').disabled = position <= 0; $('nextDetail').disabled = position < 0 || position >= ids.length - 1;
-  const facts = [['Correo institucional', a.institutionalEmail], ['Correo personal', a.personalEmail || '—'], ['Documento', `${a.identityType} ${a.identityNumber}`], ['Escuela', a.school], ['Convenio', a.discount + (a.otherDiscount ? ' · ' + a.otherDiscount : '')], ['Envíos', `${a.submissions || 1} (último ${date(a.lastSubmissionAt || a.createdAt)})`], ['Revisor', a.reviewer || '—']];
+  const facts = [['Correo institucional', a.institutionalEmail], ['Correo personal', a.personalEmail || '—'], ['Documento', `${a.identityType} ${a.identityNumber}`], ['Escuela profesional', a.school], ['Convenio', a.discount + (a.otherDiscount ? ' · ' + a.otherDiscount : '')], ['Envíos', `${a.submissions || 1} · último ${date(a.lastSubmissionAt || a.createdAt)}`]];
   $('detailContent').innerHTML = `<div class="detail-grid"><section class="detail-left">
-    ${alerts.length ? `<div class="alerts"><strong>Alertas</strong><ul>${alerts.map(i => `<li>${esc(i)}</li>`).join('')}</ul><button class="button" data-ack>Marcar como revisadas</button></div>` : ''}
+    ${alerts.length ? `<div class="alerts"><strong>Revise estas alertas</strong><ul>${alerts.map(i => `<li>${esc(i)}</li>`).join('')}</ul><button class="button" data-ack>Marcar como revisadas</button></div>` : ''}
     ${a.processingError ? `<div class="error">Error al procesar documentos: ${esc(a.processingError)}. El sistema lo reintenta automáticamente.</div>` : ''}
-    <dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+    <dl class="facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
     <h3>Documentos</h3>${documentList(documents, a.revision)}
-    <iframe id="documentPreview" class="preview hidden" title="Vista previa del documento" referrerpolicy="no-referrer"></iframe>
-    ${observations.length ? '<h3>Observaciones enviadas</h3><ul class="log">' + observations.map(o => `<li>${esc(o.category)}: ${esc(o.observation)} <small>${date(o.timestamp)}</small></li>`).join('') + '</ul>' : ''}
-    <h3>Envíos del estudiante</h3><ul class="log">${submissions.map(e => `<li>Revisión ${esc(e.revision)}${e.correction ? ' (formulario de corrección)' : ''} <small>${date(e.timestamp)}</small>${e.status === 'DONE' ? '' : ' ' + status(e.status)}${e.error ? `<small>${esc(e.error)}</small>` : ''}</li>`).join('') || '<li>—</li>'}</ul>
-    <h3>Historial</h3><ul class="log">${history.map(h => `<li>${esc(labels[h.toStatus] || h.toStatus)}${h.detail ? ' · ' + esc(h.detail) : ''} <small>${date(h.timestamp)} · ${esc(h.reviewer)}</small></li>`).join('')}</ul>
+    <div id="previewBox" class="preview-box hidden"><iframe id="documentPreview" class="preview" title="Vista previa del documento" referrerpolicy="no-referrer"></iframe><div id="previewLoading" class="overlay hidden"><div><span class="spinner large"></span><span class="label">Cargando documento…</span></div></div></div>
+    ${observations.length ? '<h3>Observaciones enviadas</h3><ul class="log">' + observations.map(o => `<li><strong>${esc(o.category)}</strong> · ${esc(o.observation)}<small>${date(o.timestamp)}</small></li>`).join('') + '</ul>' : ''}
+    <h3>Envíos del estudiante</h3><ul class="log">${submissions.map(e => `<li>Revisión ${esc(e.revision)}${e.correction ? ' · formulario de corrección' : ''} ${e.status === 'DONE' ? '' : status(e.status)}<small>${date(e.timestamp)}</small>${e.error ? `<small>${esc(e.error)}</small>` : ''}</li>`).join('') || '<li>—</li>'}</ul>
+    <h3>Historial</h3><ul class="log">${history.map(h => `<li>${esc(labels[h.toStatus] || h.toStatus)}${h.detail ? ' · ' + esc(h.detail) : ''}<small>${date(h.timestamp)} · ${esc(h.reviewer)}</small></li>`).join('')}</ul>
   </section><section class="detail-right"><h2>Decisión</h2>${decisionPanel(a)}
-    <h3>Correos</h3>${emails.map(m => `<div class="mail">${esc(emailTypes[m.type] || m.type)} · ${status(m.status)}<br><small class="sub">${esc(m.recipient)} · ${date(m.sentAt || m.createdAt)}</small></div>`).join('') || '<p class="hint">Sin correos.</p>'}
+    <h3>Correos enviados</h3>${emails.map(m => `<div class="mail"><span><strong>${esc(emailTypes[m.type] || m.type)}</strong><small>${esc(m.recipient)} · ${date(m.sentAt || m.createdAt)}</small></span>${status(m.status)}</div>`).join('') || '<p class="hint">Aún no hay correos.</p>'}
   </section></div>`;
   wireDecision();
   const first = documents.find(d => Number(d.revision) === Number(a.revision)) || documents[0];
@@ -171,10 +193,12 @@ function renderDetail() {
 function wireDecision() {
   const form = $('reviewForm'); if (!form) return;
   form.onsubmit = prepareDecision;
-  form.querySelectorAll('[name=decision]').forEach(r => r.onchange = () => {
-    const value = form.querySelector('[name=decision]:checked').value;
+  form.querySelectorAll('[data-choice]').forEach(button => button.onclick = () => {
+    const value = button.dataset.choice; form.dataset.decision = value;
+    form.querySelectorAll('[data-choice]').forEach(b => b.setAttribute('aria-pressed', String(b === button)));
     $('approvalFields').classList.toggle('hidden', value !== 'APPROVED'); $('observationFields').classList.toggle('hidden', value !== 'OBSERVED');
     $('submitDecision').disabled = false;
+    $('submitDecision').textContent = value === 'APPROVED' ? 'Aprobar y notificar' : 'Enviar observación';
   });
   $('category').onchange = () => {
     const template = boot.templates?.[$('category').value];
@@ -183,10 +207,12 @@ function wireDecision() {
   $('observation').oninput = () => delete $('observation').dataset.auto;
 }
 async function openDetail(id) {
-  detail = await api('getApplication', id);
+  const dialog = $('detailDialog');
+  if (dialog.open) $('detailLoading').classList.remove('hidden');
+  try { detail = await api('getApplication', id); } finally { $('detailLoading').classList.add('hidden'); }
   renderDetail();
-  if (!$('detailDialog').open) $('detailDialog').showModal();
-  $('detailDialog').scrollTop = 0;
+  if (!dialog.open) dialog.showModal();
+  dialog.scrollTop = 0;
 }
 async function step(offset) {
   const next = ids[ids.indexOf(detail?.application?.id) + offset];
@@ -194,7 +220,7 @@ async function step(offset) {
 }
 function prepareDecision(event) {
   event.preventDefault();
-  const a = detail.application, choice = $('reviewForm').querySelector('[name=decision]:checked')?.value;
+  const a = detail.application, choice = $('reviewForm').dataset.decision;
   if (!choice) return toast('Elija Aprobar u Observar.', true);
   if (choice === 'APPROVED' && !$('siguConfirmed').checked) return toast('Confirme que el descuento está registrado en SIGU.', true);
   if (choice === 'OBSERVED' && (!$('category').value || $('observation').value.trim().length < 10)) return toast('Elija un motivo y escriba la observación (mínimo 10 caracteres).', true);
@@ -204,7 +230,7 @@ function prepareDecision(event) {
   $('confirmDialog').showModal();
 }
 async function confirmDecision() {
-  $('confirmDecision').disabled = true;
+  $('confirmDecision').classList.add('is-loading'); $('confirmDecision').disabled = true; $('cancelDecision').disabled = true;
   try {
     const id = pendingDecision.id, position = ids.indexOf(id), approved = pendingDecision.decision === 'APPROVED';
     await api('saveDecision', pendingDecision);
@@ -213,20 +239,21 @@ async function confirmDecision() {
     await loadApplications();
     const next = ids.find((x, i) => i >= position && x !== id);
     if (next) await openDetail(next); else { $('detailDialog').close(); toast('No quedan más solicitudes en esta vista.'); }
-  } catch (e) { handle(e); } finally { $('confirmDecision').disabled = false; }
+  } catch (e) { handle(e); } finally { $('confirmDecision').classList.remove('is-loading'); $('confirmDecision').disabled = false; $('cancelDecision').disabled = false; }
 }
 
 /* ---------- Emails ---------- */
 async function loadEmails() {
+  if (!$('emailRows').children.length) $('emailRows').innerHTML = skeletonRows(6, 5);
   const rows = await api('listEmails');
-  $('emailRows').innerHTML = rows.length ? rows.map(m => `<tr><td><button class="link code" data-open="${esc(m.applicationId)}">${esc(m.applicationId)}</button></td><td>${esc(m.recipient)}</td><td>${esc(emailTypes[m.type] || m.type)}</td><td class="nowrap">${date(m.sentAt || m.createdAt)}</td><td>${status(m.status)}${m.error ? `<small>${esc(m.error)}</small>` : ''}</td><td class="nowrap">${boot.isAdmin && m.status === 'UNCERTAIN' ? `<button class="button" data-resolve="${esc(m.key)}" data-resolution="CONFIRM_SENT">Marcar enviado</button> <button class="button" data-resolve="${esc(m.key)}" data-resolution="REQUEUE">Reintentar</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="empty">No hay correos.</td></tr>';
+  $('emailRows').innerHTML = rows.length ? rows.map(m => `<tr><td><button class="link code" data-open="${esc(m.applicationId)}">${esc(m.applicationId)}</button></td><td>${esc(m.recipient)}</td><td>${esc(emailTypes[m.type] || m.type)}</td><td>${date(m.sentAt || m.createdAt)}</td><td>${status(m.status)}${m.error ? `<small>${esc(m.error)}</small>` : ''}</td><td class="nowrap">${boot.isAdmin && m.status === 'UNCERTAIN' ? `<button class="button" data-resolve="${esc(m.key)}" data-resolution="CONFIRM_SENT">Marcar enviado</button> <button class="button" data-resolve="${esc(m.key)}" data-resolution="REQUEUE">Reintentar</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="empty">No hay correos.</td></tr>';
 }
 
 /* ---------- Start-up and events ---------- */
 async function init() {
   const [bootstrap] = await Promise.all([api('getBootstrap'), loadApplications().catch(handle)]);
   boot = bootstrap;
-  $('actor').textContent = String(boot.actor).replace(/^gestión:/, ''); $('period').textContent = boot.period;
+  $('actor').textContent = String(boot.actor).replace(/^gestión:/, ''); $('avatar').textContent = initials(boot.actor); $('period').textContent = boot.period;
   $('pausedBanner').classList.toggle('hidden', boot.emailEnabled); $('demoBanner').classList.toggle('hidden', !window.UMA_DEMO);
   choices('statusFilter', boot.states); choices('discountFilter', boot.discounts); choices('schoolFilter', boot.schools);
   if (window.UMA_DEMO) $('logoutManagement').classList.add('hidden');
@@ -236,7 +263,8 @@ async function init() {
 }
 const reload = () => { page = 1; loadApplications().catch(handle); };
 $('navigation').onclick = e => { const tab = e.target.closest('[data-view]'); if (tab) navigate(tab.dataset.view).catch(handle); };
-$('refresh').onclick = () => navigate(view).catch(handle);
+$('refresh').onclick = e => withButton(e.currentTarget, () => navigate(view)).catch(handle);
+$('moreFilters').onclick = () => { const hidden = $('advancedFilters').classList.toggle('hidden'); $('moreFilters').setAttribute('aria-expanded', String(!hidden)); };
 $('filters').onsubmit = e => { e.preventDefault(); reload(); };
 $('search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(reload, 300); };
 ['statusFilter','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).onchange = reload);
@@ -263,8 +291,8 @@ document.addEventListener('click', async e => {
     if (open && !$('detailDialog').contains(open)) return await openDetail(open.dataset.open);
     if (preview) await previewDocument(preview.dataset.preview);
     if (download) downloadFile(await documentFile(download.dataset.download));
-    if (e.target.closest('[data-ack]')) { await api('acknowledgeIssues', detail.application.id, detail.application.version); await openDetail(detail.application.id); await loadApplications(); toast('Alertas marcadas como revisadas.'); }
-    if (e.target.id === 'renewCorrection') { await api('renewCorrection', detail.application.id); await openDetail(detail.application.id); toast('Nuevo enlace enviado a la cola de correos.'); }
+    if (e.target.closest('[data-ack]')) { await withButton(e.target.closest('[data-ack]'), () => api('acknowledgeIssues', detail.application.id, detail.application.version)); await openDetail(detail.application.id); await loadApplications(); toast('Alertas marcadas como revisadas.'); }
+    if (e.target.id === 'renewCorrection') { await withButton(e.target, () => api('renewCorrection', detail.application.id)); await openDetail(detail.application.id); toast('Nuevo enlace enviado a la cola de correos.'); }
     if (resolve) {
       const note = prompt(resolve.dataset.resolution === 'REQUEUE' ? 'Describa cómo comprobó que el correo no llegó. Reintentar puede duplicarlo.' : 'Describa cómo comprobó que el correo fue enviado.');
       if (note) { await api('resolveEmail', resolve.dataset.resolve, resolve.dataset.resolution, note); await loadEmails(); }
@@ -272,9 +300,8 @@ document.addEventListener('click', async e => {
   } catch (error) { handle(error); }
 });
 $('export').onclick = async () => {
-  const button = $('export'); button.disabled = true;
-  try { const result = await api('exportExcel', filters()); downloadFile(result); toast(`Excel descargado: ${result.count} solicitudes.`); }
-  catch (e) { handle(e); } finally { button.disabled = false; }
+  try { const result = await withButton($('export'), () => api('exportExcel', filters())); downloadFile(result); toast(`Excel descargado: ${result.count} solicitudes.`); }
+  catch (e) { handle(e); }
 };
 if (window.UMA_REMOTE) window.UMA_REMOTE.start(init); else init().catch(handle);
 })();

@@ -5,7 +5,7 @@
   const state={config:null,token:null,onAuthenticated:null,loginController:null,phase:''};
   const publicMethods=new Set(['managementAuthParameters','loginManagement']);
   const methods=new Set([...publicMethods,'logoutManagement','getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck','getDocumentFile','acknowledgeIssues','listUnlinkedSubmissions']);
-  const show=message=>{document.getElementById('connectionMessage').textContent=message;};
+  const show=message=>{const el=document.getElementById('connectionMessage');el.textContent=message;if(el.classList)el.classList.toggle('loading',/…$/.test(message));};
   const readToken=()=>{try{return sessionStorage.getItem(storageKey)||null;}catch{return null;}};
   const saveToken=token=>{state.token=token;try{if(token)sessionStorage.setItem(storageKey,token);else sessionStorage.removeItem(storageKey);}catch{}};
   const showLogin=message=>{document.getElementById('connectionGate').classList.remove('hidden');document.getElementById('workspaceApp').setAttribute('inert','');show(message);};
