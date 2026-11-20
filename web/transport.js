@@ -5,7 +5,7 @@
   const state={config:null,token:null,onAuthenticated:null,loginController:null,phase:''};
   const publicMethods=new Set(['managementAuthParameters','loginManagement']);
   const methods=new Set([...publicMethods,'logoutManagement','getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck','getDocumentFile','acknowledgeIssues','listUnlinkedSubmissions','sendEmailNow']);
-  const show=message=>{const el=document.getElementById('connectionMessage');el.textContent=message;if(el.classList)el.classList.toggle('loading',/…$/.test(message));};
+  const show=message=>{const el=document.getElementById('connectionMessage');el.textContent=message;if(el.classList){el.classList.toggle('loading',/…$/.test(message));el.classList.remove('success');}};
   const readToken=()=>{try{return sessionStorage.getItem(storageKey)||null;}catch{return null;}};
   const saveToken=token=>{state.token=token;try{if(token)sessionStorage.setItem(storageKey,token);else sessionStorage.removeItem(storageKey);}catch{}};
   const showLogin=message=>{if(document.querySelectorAll)document.querySelectorAll('dialog[open]').forEach(d=>d.close());document.getElementById('connectionGate').classList.remove('hidden');document.getElementById('workspaceApp').setAttribute('inert','');show(message);};
@@ -47,7 +47,9 @@
     return Array.from(new Uint8Array(await crypto.subtle.deriveBits({name:'PBKDF2',salt,iterations:params.iterations,hash:'SHA-256'},key,256)),v=>v.toString(16).padStart(2,'0')).join('');
   }
   window.UMA_REMOTE={call,validApi,
-    async start(onAuthenticated){state.onAuthenticated=onAuthenticated;state.token=readToken();if(state.token){show('Cargando el panel…');try{await onAuthenticated();}catch(error){showLogin(cleanError(error));}}else show('Ingrese su usuario y contraseña para continuar.');
+    async start(onAuthenticated){state.onAuthenticated=onAuthenticated;state.token=readToken();if(state.token){show('Cargando el panel…');try{await onAuthenticated();}catch(error){showLogin(cleanError(error));}}else{let loggedOut=false;try{loggedOut=sessionStorage.getItem(logoutFlag)==='1';sessionStorage.removeItem(logoutFlag);}catch{}
+        if(loggedOut){show('Sesión cerrada correctamente. Puede volver a ingresar cuando lo necesite.');const m=document.getElementById('connectionMessage');if(m.classList)m.classList.add('success');}
+        else show('Ingrese su usuario y contraseña para continuar.');}
       // Wake the free API service before the user finishes typing; never send credentials here.
       configuration().then(async config=>{await fetch(config.apiUrl.replace(/\/$/,'')+'/healthz',{credentials:'omit',cache:'no-store',signal:AbortSignal.timeout(90000)});if(!state.token)await prefetchParams(config);}).catch(()=>{});
     },
@@ -70,5 +72,16 @@
       saveToken(session.token);password.value='';state.phase='loading';show('Cargando solicitudes…');await state.onAuthenticated();
     }catch(error){showLogin(cleanError(error));}finally{clearTimeout(deadline);clearTimeout(slow);state.loginController=null;state.phase='';button.disabled=false;}
   };
-  document.getElementById('logoutManagement').onclick=async()=>{try{await call('logoutManagement');}catch{}finally{saveToken(null);location.reload();}};
+  // Logout: visible "Cerrando sesión…" screen, at most a few seconds of waiting, then a confirmation on the login screen.
+  const logoutFlag='uma.management.loggedOut';
+  document.getElementById('logoutManagement').onclick=async()=>{
+    const button=document.getElementById('logoutManagement'),overlay=document.getElementById('logoutOverlay');
+    if(button.disabled)return;button.disabled=true;
+    if(document.querySelectorAll)document.querySelectorAll('dialog[open]').forEach(d=>d.close());
+    if(overlay)overlay.classList.remove('hidden');
+    // The server only revokes the session; the browser forgets it either way, so never wait long.
+    try{await Promise.race([call('logoutManagement'),new Promise(resolve=>setTimeout(resolve,6000))]);}catch{}
+    saveToken(null);try{sessionStorage.setItem(logoutFlag,'1');}catch{}
+    location.reload();
+  };
 })();

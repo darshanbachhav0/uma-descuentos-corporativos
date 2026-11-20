@@ -37,3 +37,20 @@ test('outdated saved parameters are refreshed once and the login retried',async(
   assert.equal(JSON.parse(t.local.get('uma.management.params')).salt,'2'.repeat(32));
   assert.equal(t.storage.get('uma.management.session'),'c'.repeat(64));
 });
+
+test('logout shows a closing screen, never waits long for the server and confirms on the login screen',async()=>{
+  const t=transport('a'.repeat(64),async()=>new Promise(()=>{}));
+  let overlay=false;t.nodes.logoutOverlay={classList:{remove(){overlay=true;},add(){}}};t.nodes.logoutManagement.disabled=false;
+  t.context.document.querySelectorAll=()=>[];
+  await t.start();
+  const done=t.nodes.logoutManagement.onclick();
+  await new Promise(r=>setImmediate(r));
+  assert.ok(overlay);assert.equal(t.nodes.logoutManagement.disabled,true);
+  const cap=[...t.timers.values()].find(timer=>timer.ms===6000);assert.ok(cap,'logout waits at most 6 s');cap.f();
+  await done;
+  assert.equal(t.storage.has('uma.management.session'),false);
+  assert.equal(t.storage.get('uma.management.loggedOut'),'1');
+  const next=transport(null);next.storage.set('uma.management.loggedOut','1');await next.start();
+  assert.match(next.nodes.connectionMessage.textContent,/Sesión cerrada correctamente/);
+  assert.equal(next.storage.has('uma.management.loggedOut'),false);
+});
