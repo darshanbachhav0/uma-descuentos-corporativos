@@ -6,11 +6,14 @@ function restrictedFolder_(parent, name) {
 function ensureApplicationFolder_(a) {
   if(a.folderId)return DriveApp.getFolderById(a.folderId);
   var period=restrictedFolder_(DriveApp.getFolderById(config_().ROOT_DRIVE_FOLDER_ID),a.period);
-  var folder=restrictedFolder_(period,a.id);a.folderId=folder.getId();a.folderUrl=folder.getUrl();saveApplication_(a);return folder;
+  // Readable and stable: the code plus the institutional email that groups every submission.
+  var folder=restrictedFolder_(period,a.id+(a.institutionalEmail?' · '+a.institutionalEmail:''));a.folderId=folder.getId();a.folderUrl=folder.getUrl();saveApplication_(a);return folder;
 }
 /** Copies the revision's uploads privately. Returns data issues; storage failures throw so they are retried. */
-function copyDocuments_(a, uploads, revision) {
-  var cfg=config_(),folder=restrictedFolder_(ensureApplicationFolder_(a),'Revision_'+revision),issues=[];
+function copyDocuments_(a, uploads, revision, submittedAt) {
+  // Every name derives from the submission time, so a retried copy finds the same folder and files.
+  var stamp=limaStamp_(submittedAt||a.lastSubmissionAt||a.createdAt);
+  var cfg=config_(),folder=restrictedFolder_(ensureApplicationFolder_(a),'Revisión '+revision+' · '+stamp),issues=[];
   if(!uploads.socioeconomic.length)issues.push('Falta la ficha socioeconómica');
   var all=uploads.socioeconomic.concat(uploads.supporting);assert_(all.length<=Number(cfg.MAX_FILES),'Demasiados documentos');
   var sources=all.map(function(id){assert_(/^[\w-]{10,}$/.test(id),'ID de archivo inválido');var f=DriveApp.getFileById(id);
@@ -24,9 +27,10 @@ function copyDocuments_(a, uploads, revision) {
     if(find_('Documentos','key',key))return;
     var ext={'application/pdf':'pdf','image/jpeg':'jpg','image/png':'png'}[source.getMimeType()];
     // Deterministic names recover an interrupted copy-before-sheet-write without duplicating it.
-    var name=kind+'_'+String(index+1)+'_'+sourceId+'.'+ext,it=folder.getFilesByName(name),copy=it.hasNext()?it.next():source.makeCopy(name,folder);
+    var label=(kind==='socioeconomic'?'Ficha socioeconómica':'Documento sustentatorio')+' '+String(index+1);
+    var name=label+' · '+stamp+'.'+ext,it=folder.getFilesByName(name),copy=it.hasNext()?it.next():source.makeCopy(name,folder);
     copy.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.NONE);
-    append_('Documentos',{key:key,applicationId:a.id,revision:revision,kind:kind,sourceId:sourceId,fileId:copy.getId(),name:kind+' '+(index+1)+'.'+ext,mimeType:copy.getMimeType(),url:copy.getUrl(),createdAt:now_()});
+    append_('Documentos',{key:key,applicationId:a.id,revision:revision,kind:kind,sourceId:sourceId,fileId:copy.getId(),name:name,mimeType:copy.getMimeType(),url:copy.getUrl(),createdAt:now_(),submittedAt:submittedAt||''});
   });});
   var docs=rows_('Documentos').filter(function(d){return d.applicationId===a.id&&Number(d.revision)===revision;});
   a.socioeconomicUrls=docs.filter(function(d){return d.kind==='socioeconomic';}).map(function(d){return d.url;}).join('\n');

@@ -19,7 +19,7 @@ El panel tiene cuatro pestañas:
 2. Abra la pestaña **Pendientes** (aparecen primero las que esperan a Tesorería; use el filtro rápido **Por revisar** si solo quiere esas) y haga clic en una fila. La ficha de la revisión actual se muestra en la vista previa. Las flechas ← → pasan a la solicitud anterior o siguiente.
 3. Si hay alertas, revíselas y pulse **Marcar como revisadas** cuando corresponda.
 4. **Aprobar:** registre primero el descuento en SIGU. Elija **Aprobar**, marque la confirmación y pulse **Guardar y notificar**.
-5. **Observar:** elija **Observar** y un motivo. Se propone un texto para el estudiante (qué falta y qué debe enviar); edítelo si hace falta y pulse **Guardar y notificar**. El estudiante recibe el correo con un enlace seguro de corrección; también puede volver a enviar el formulario inicial con su correo institucional.
+5. **Observar:** elija **Observar** y un motivo. Se propone un texto para el estudiante (qué falta y qué debe enviar); edítelo si hace falta y pulse **Guardar y notificar**. El estudiante recibe un correo con la observación y el enlace del mismo formulario de solicitud. Al volver a enviarlo con el mismo correo institucional, sus nuevos documentos se agregan a su solicitud como una nueva revisión (no necesita ningún código).
 6. Al guardar se abre la siguiente solicitud de la lista.
 7. Cuando el estudiante corrige, la solicitud pasa a **Corrección recibida** y vuelve al inicio de **Pendientes** para revisarla de nuevo.
 
@@ -32,6 +32,10 @@ Si un estudiante envía el formulario después de la aplicación en SIGU, la sol
 - Al pulsar **Confirmar y notificar** el correo se envía en ese momento y aparece un mensaje con el resultado: **Correo enviado**, **El correo aún no se envió** (con el motivo: envío pausado, cuota diaria agotada, etc.; queda en cola y se envía solo) o **No se pudo confirmar el envío** (revíselo en Correos).
 - En **Correos**, un correo **En cola** tiene el botón **Enviar ahora**.
 
+## Documentos en Google Drive
+
+Cada solicitud tiene una carpeta `Código · correo institucional` dentro de la carpeta del periodo. Cada envío crea una subcarpeta `Revisión N · AAAA-MM-DD HH.MM` (hora de Lima) con archivos como `Ficha socioeconómica 1 · AAAA-MM-DD HH.MM.pdf`. En el panel, cada revisión muestra la fecha y hora de envío y la más reciente aparece primero.
+
 ## Exportar
 
 **Exportar Excel** descarga la lista con los filtros actuales, con hojas de solicitudes y documentos. Los enlaces abren la solicitud en el panel.
@@ -40,7 +44,7 @@ Si un estudiante envía el formulario después de la aplicación en SIGU, la sol
 
 Los correos se envían automáticamente unas tres veces por minuto, según la cuota diaria de la cuenta de envío. **Aceptado por Google** significa que el envío fue aceptado, no que el estudiante lo abrió. En la pestaña **Correos**, un envío **Requiere comprobación** se marca como enviado o se reintenta tras verificarlo con el estudiante; reintentar un correo ya aceptado puede duplicarlo.
 
-En una solicitud observada, **Enviar nuevo enlace de corrección** invalida el anterior y envía uno nuevo.
+En una solicitud observada, **Reenviar correo de observación** vuelve a enviar la observación con el enlace del formulario.
 
 ## Ajustes del administrador
 

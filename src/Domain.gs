@@ -47,6 +47,11 @@ function limaDate_(value) {
   var t = Date.parse(text); if (isNaN(t)) return text.slice(0,10);
   return new Date(t - 5*3600000).toISOString().slice(0,10);
 }
+/** Lima time for Drive names, e.g. "2026-11-20 14.33" (Drive names cannot contain ":"). */
+function limaStamp_(value) {
+  var t = Date.parse(value); if (isNaN(t)) t = Date.now();
+  var iso = new Date(t - 5*3600000).toISOString(); return iso.slice(0,10) + ' ' + iso.slice(11,13) + '.' + iso.slice(14,16);
+}
 function needsAttention_(a) { return !!(a.issues || a.processingError); }
 function validateDecision_(a, d) {
   assert_(Number(d.version)===Number(a.version),'El expediente cambió. Actualice antes de continuar.');

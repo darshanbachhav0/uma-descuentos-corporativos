@@ -196,12 +196,13 @@ function closeViewer() { $('viewerFrame').src = 'about:blank'; $('viewerImage').
 function documentList(documents, current) {
   if (!documents.length) return '<p class="note hint">Sin documentos procesados.</p>';
   const revisions = [...new Set(documents.map(d => Number(d.revision)))].sort((a, b) => b - a);
-  return '<ul class="docs">' + revisions.map(rev => `<li class="rev">Revisión ${rev}${rev === Number(current) ? ' · actual' : ''}</li>` +
+  const sentAt = rev => { const d = documents.find(x => Number(x.revision) === rev && x.submittedAt); return d ? ' · enviada ' + date(d.submittedAt) : ''; };
+  return '<ul class="docs">' + revisions.map(rev => `<li class="rev">Revisión ${rev}${rev === Number(current) ? ' · más reciente' : ''}${sentAt(rev)}</li>` +
     documents.filter(d => Number(d.revision) === rev).map(d => `<li><span class="name"><span class="ui-icon" data-icon="file"></span><span><strong>${d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Documento sustentatorio'}</strong><small class="sub">${esc(d.name)}</small></span></span><span class="actions"><button class="link" data-preview="${esc(d.fileId)}">Ver</button><button class="link" data-download="${esc(d.fileId)}">Descargar</button></span></li>`).join('')).join('') + '</ul>';
 }
 function decisionPanel(a) {
   if (a.status === 'APLICADA_SIGU') return '<p class="note">El descuento ya fue aplicado en SIGU.</p>';
-  if (a.status === 'OBSERVADA') return `<p class="note">Esperando la corrección del estudiante. La solicitud sigue pendiente; el enlace de corrección vence el ${date(a.correctionExpiresAt)}</p><button id="renewCorrection" class="button outline">Enviar nuevo enlace de corrección</button>`;
+  if (a.status === 'OBSERVADA') return `<p class="note">Esperando la corrección del estudiante. Cuando vuelva a enviar el formulario con ${esc(a.institutionalEmail)}, sus nuevos documentos aparecerán aquí como una nueva revisión.</p><button id="renewCorrection" class="button outline">Reenviar correo de observación</button>`;
   if (a.processingError) return '<p class="note">La decisión está bloqueada hasta que se procesen los documentos.</p>';
   if (!a.recipient) return '<p class="note">Esta solicitud no tiene un correo válido del estudiante, por lo que no se puede notificar ninguna decisión. Pida al estudiante que vuelva a enviar el formulario con su correo institucional correcto; el nuevo envío se añadirá a esta solicitud.</p>';
   return `<form id="reviewForm" class="decision" novalidate>
@@ -427,7 +428,7 @@ document.addEventListener('click', async e => {
     if (preview) await openViewer(preview.dataset.preview);
     if (download) downloadFile(await documentFile(download.dataset.download));
     if (e.target.closest('[data-ack]')) { await withButton(e.target.closest('[data-ack]'), () => api('acknowledgeIssues', detail.application.id, detail.application.version)); await openDetail(detail.application.id); await loadApplications(); toast('Alertas marcadas como revisadas.'); }
-    if (e.target.id === 'renewCorrection') { const id = detail.application.id, result = await withButton(e.target, () => api('renewCorrection', id)); if (await showEmailResult(result.email, 'Nuevo enlace de corrección generado') !== 'mails') await openDetail(id); }
+    if (e.target.id === 'renewCorrection') { const id = detail.application.id, result = await withButton(e.target, () => api('renewCorrection', id)); if (await showEmailResult(result.email, 'Correo de observación reenviado') !== 'mails') await openDetail(id); }
     const sendNow = e.target.closest('[data-send-now]');
     if (sendNow) {
       const inCase = $('detailDialog').contains(sendNow), caseId = detail?.application?.id, result = await withButton(sendNow, () => api('sendEmailNow', sendNow.dataset.sendNow));
