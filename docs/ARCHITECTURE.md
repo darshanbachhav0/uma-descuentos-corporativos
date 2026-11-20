@@ -28,7 +28,7 @@ El token opaco se conserva en sessionStorage y se envía en Authorization, nunca
 
 La entrada tiene un plazo total de 90 segundos y siempre vuelve a habilitar el botón tras un fallo. El inicio del sitio despierta el servicio API gratuito; tras inactividad Render puede tardar en iniciarlo y la interfaz muestra ese estado en vez de permanecer indefinidamente en Validando acceso.
 
-Las vistas previas, descargas de documentos y exportaciones XLSX se entregan por la misma sesión autenticada. Los archivos se conservan privados en Drive. Los enlaces del Excel abren el expediente o documento en el panel. Los estudiantes reciben directamente Google Forms; `/estudiantes` redirige a ese formulario.
+Las vistas previas, descargas de documentos y exportaciones XLSX se entregan por la misma sesión autenticada. Los archivos no son públicos: el acceso de lectura sigue al de la hoja principal (`Sharing.gs`). Quien tiene acceso a la hoja se agrega como lector de las carpetas de periodo (`2027-I`), que Drive hereda a cada solicitud y documento; si la hoja se comparte por enlace, cada documento recibe el mismo tipo de enlace, solo lectura. La carpeta del sistema, las exportaciones, la plantilla y la hoja del sistema nunca se comparten. Se sincroniza cada 10 minutos con `reconcileSubmissions`. Los enlaces del Excel abren el expediente o documento en el panel. Los estudiantes reciben directamente Google Forms; `/estudiantes` redirige a ese formulario.
 
 ## Persistencia y recuperación
 

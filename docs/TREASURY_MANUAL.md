@@ -36,6 +36,15 @@ Si un estudiante envía el formulario después de la aplicación en SIGU, la sol
 
 Cada solicitud tiene una carpeta `Código · correo institucional` dentro de la carpeta del periodo. Cada envío crea una subcarpeta `Revisión N · AAAA-MM-DD HH.MM` (hora de Lima) con archivos como `Ficha socioeconómica 1 · AAAA-MM-DD HH.MM.pdf`. En el panel, cada revisión muestra la fecha y hora de envío y la más reciente aparece primero.
 
+## Acceso a los documentos desde otras cuentas
+
+Los enlaces de documentos de la hoja **Respuestas de estudiantes** se abren con cualquier cuenta que tenga acceso a la hoja. No hay que compartir cada archivo:
+
+- **Compartir con personas:** en la hoja, **Compartir** → agregue el correo (lector, comentarista o editor). En unos 10 minutos esa cuenta puede ver todos los documentos, también los que lleguen después (solo lectura). Si se quita a la persona de la hoja, pierde el acceso a los documentos.
+- **Compartir por enlace:** si la hoja se comparte con “Cualquier persona con el enlace”, cada documento recibe también acceso con enlace, solo lectura. Tenga en cuenta que son documentos personales de los estudiantes.
+
+Para aplicarlo al instante (sin esperar 10 minutos), el propietario ejecuta `shareDocumentsWithSheetUsers` en Apps Script; el registro muestra a quién se dio acceso. Google puede enviar a cada persona un aviso por correo la primera vez. Nunca se comparten la carpeta del sistema, las exportaciones ni la hoja **UMA — Datos del sistema (no editar)**.
+
 ## Exportar
 
 **Exportar Excel** descarga la lista con los filtros actuales, con hojas de solicitudes y documentos. Los enlaces abren la solicitud en el panel.
