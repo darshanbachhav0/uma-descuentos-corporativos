@@ -1,53 +1,58 @@
 <!DOCTYPE html>
 <html lang="es">
-<head><base target="_top"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Descuentos corporativos · Tesorería UMA</title><?!= include_('Styles'); ?></head>
+<head><base target="_top"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#e91953"><title>Descuentos corporativos · Tesorería UMA</title><?!= include_('Styles'); ?></head>
 <body>
 <a class="skip" href="#main">Ir al contenido</a>
 <div class="app">
   <header class="topbar">
-    <div class="brand"><img src="<?!= include_('Logo'); ?>" alt="UMA" width="104" height="48"><div><strong>Descuentos corporativos</strong><span>Tesorería · <span id="period">2027-I</span></span></div></div>
-    <div class="account"><span id="actor">…</span><button id="logoutManagement" class="button" type="button">Cerrar sesión</button></div>
+    <div class="brand"><img src="<?!= include_('Logo'); ?>" alt="Universidad María Auxiliadora" width="112" height="52"><span class="divider" aria-hidden="true"></span><div class="brand-text"><strong>Descuentos corporativos</strong><span>Área de Tesorería · Periodo <span id="period">2027-I</span></span></div></div>
+    <div class="account"><span class="avatar" id="avatar" aria-hidden="true">T</span><span class="account-name" id="actor">…</span><button id="logoutManagement" class="button ghost" type="button">Cerrar sesión</button></div>
   </header>
   <nav id="navigation" class="tabs" aria-label="Solicitudes">
-    <button class="tab active" data-view="pending" aria-current="page">Pendientes <span id="navPending">0</span></button>
-    <button class="tab" data-view="review">Por revisar <span id="navReview">0</span></button>
-    <button class="tab" data-view="observed">Observadas <span id="navObserved">0</span></button>
-    <button class="tab" data-view="approved">Aplicadas en SIGU <span id="navApplied">0</span></button>
-    <button class="tab" data-view="applications">Todas <span id="navTotal">0</span></button>
+    <button class="tab active" data-view="pending" aria-current="page">Pendientes <span class="count" id="navPending">0</span></button>
+    <button class="tab" data-view="review">Por revisar <span class="count" id="navReview">0</span></button>
+    <button class="tab" data-view="observed">Observadas <span class="count" id="navObserved">0</span></button>
+    <button class="tab" data-view="approved">Aplicadas en SIGU <span class="count" id="navApplied">0</span></button>
+    <button class="tab" data-view="applications">Todas <span class="count" id="navTotal">0</span></button>
     <button class="tab" data-view="emails">Correos</button>
   </nav>
-  <div id="progress" class="progress hidden" role="progressbar" aria-label="Cargando"></div>
+  <div id="progress" class="progress hidden" role="progressbar" aria-label="Cargando"><span></span></div>
   <main id="main" tabindex="-1">
-    <p id="demoBanner" class="banner hidden">Vista local de demostración con datos ficticios. No se envían correos.</p>
+    <p id="demoBanner" class="banner info hidden">Vista local de demostración con datos ficticios. No se envían correos.</p>
     <p id="pausedBanner" class="banner hidden">El envío de correos está pausado. Las decisiones se guardan y los correos quedan en cola.</p>
     <p id="attentionBar" class="banner hidden" role="status"></p>
-    <section id="applicationsPanel">
+    <section id="applicationsPanel" class="card">
       <form id="filters" class="toolbar">
-        <input id="search" type="search" placeholder="Buscar por nombre, DNI, correo o código" autocomplete="off" aria-label="Buscar">
+        <label class="search"><span class="ui-icon" data-icon="search"></span><input id="search" type="search" placeholder="Buscar por nombre, DNI, correo o código" autocomplete="off" aria-label="Buscar"></label>
         <select id="statusFilter" aria-label="Estado"><option value="">Todos los estados</option></select>
         <select id="discountFilter" aria-label="Convenio"><option value="">Todos los convenios</option></select>
+        <button type="button" id="moreFilters" class="button" aria-expanded="false" aria-controls="advancedFilters"><span class="ui-icon" data-icon="filter"></span>Filtros</button>
+        <span class="spacer"></span>
+        <button type="button" id="refresh" class="button icon-only" aria-label="Actualizar" title="Actualizar"><span class="ui-icon" data-icon="refresh"></span></button>
+        <button type="button" id="export" class="button outline"><span class="ui-icon" data-icon="download"></span>Exportar Excel</button>
+      </form>
+      <div id="advancedFilters" class="toolbar advanced hidden">
         <select id="schoolFilter" aria-label="Escuela"><option value="">Todas las escuelas</option></select>
         <label class="date">Desde <input id="fromFilter" type="date"></label>
         <label class="date">Hasta <input id="toFilter" type="date"></label>
-        <button type="button" id="clearFilters" class="link">Limpiar</button>
-        <span class="spacer"></span>
-        <button type="button" id="refresh" class="button">Actualizar</button>
-        <button type="button" id="export" class="button">Exportar Excel</button>
-      </form>
-      <div class="table-wrap"><table class="apps"><thead><tr><th>Código</th><th>Estudiante</th><th>Correo institucional</th><th>Convenio</th><th>Envíos</th><th>Último envío</th><th>Estado</th></tr></thead><tbody id="applicationRows"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody></table></div>
-      <footer class="pager"><span id="paginationText"></span><span><button id="prevPage" class="button">Anterior</button> <button id="nextPage" class="button">Siguiente</button></span></footer>
+        <button type="button" id="clearFilters" class="link">Limpiar filtros</button>
+      </div>
+      <div class="table-wrap"><table class="apps"><thead><tr><th>Estudiante</th><th>Correo institucional</th><th>Convenio</th><th class="num">Envíos</th><th>Último envío</th><th>Estado</th></tr></thead><tbody id="applicationRows"></tbody></table></div>
+      <footer class="pager"><span id="paginationText"></span><span class="pager-buttons"><button id="prevPage" class="button small" aria-label="Página anterior"><span class="ui-icon" data-icon="left"></span></button><button id="nextPage" class="button small" aria-label="Página siguiente"><span class="ui-icon" data-icon="right"></span></button></span></footer>
     </section>
-    <section id="emailsPanel" class="hidden">
-      <p class="hint">“Aceptado por Google” significa que Google aceptó el envío; no confirma que llegó al buzón.</p>
-      <div class="table-wrap"><table><thead><tr><th>Solicitud</th><th>Destinatario</th><th>Tipo</th><th>Fecha</th><th>Estado</th><th></th></tr></thead><tbody id="emailRows"></tbody></table></div>
+    <section id="emailsPanel" class="card hidden">
+      <p class="hint pad">“Aceptado por Google” significa que Google aceptó el envío; no confirma que llegó al buzón.</p>
+      <div class="table-wrap"><table class="mails"><thead><tr><th>Solicitud</th><th>Destinatario</th><th>Tipo</th><th>Fecha</th><th>Estado</th><th></th></tr></thead><tbody id="emailRows"></tbody></table></div>
     </section>
+    <footer class="page-footer">Universidad María Auxiliadora · Área de Tesorería</footer>
   </main>
 </div>
 <dialog id="detailDialog" class="detail-dialog" aria-labelledby="detailTitle">
-  <header class="detail-header"><div><h2 id="detailTitle">Solicitud</h2><div id="detailCode" class="sub"></div></div><div class="detail-nav"><span id="detailPosition" class="sub"></span><button id="prevDetail" class="button" aria-label="Anterior" title="Anterior (←)">‹</button><button id="nextDetail" class="button" aria-label="Siguiente" title="Siguiente (→)">›</button><button id="closeDetail" class="button" aria-label="Cerrar">Cerrar</button></div></header>
+  <header class="detail-header"><div class="detail-title"><span class="avatar large" id="detailAvatar" aria-hidden="true"></span><div><h2 id="detailTitle" tabindex="-1" autofocus>Solicitud</h2><div id="detailCode" class="sub"></div></div></div><div class="detail-nav"><span id="detailPosition" class="sub"></span><button id="prevDetail" class="button icon-only" aria-label="Solicitud anterior" title="Anterior (←)"><span class="ui-icon" data-icon="left"></span></button><button id="nextDetail" class="button icon-only" aria-label="Solicitud siguiente" title="Siguiente (→)"><span class="ui-icon" data-icon="right"></span></button><button id="closeDetail" class="button icon-only" aria-label="Cerrar"><span class="ui-icon" data-icon="close"></span></button></div></header>
   <div id="detailContent"></div>
+  <div id="detailLoading" class="overlay hidden" aria-hidden="true"><span class="spinner large"></span></div>
 </dialog>
-<dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle"><h2 id="confirmTitle">Confirmar</h2><p id="confirmText"></p><div class="dialog-actions"><button id="cancelDecision" class="button">Volver</button><button id="confirmDecision" class="button primary">Confirmar</button></div></dialog>
+<dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle"><span class="confirm-icon"><span class="ui-icon" data-icon="mail"></span></span><h2 id="confirmTitle">Confirmar</h2><p id="confirmText"></p><div class="dialog-actions"><button id="cancelDecision" class="button">Volver</button><button id="confirmDecision" class="button primary">Confirmar y notificar</button></div></dialog>
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 <?!= include_('Client'); ?>
 </body></html>

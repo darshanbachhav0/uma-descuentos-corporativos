@@ -1,6 +1,6 @@
 # Interfaz
 
-El panel es una herramienta interna de trabajo: fondo blanco, tipografía del sistema, una sola tabla y pocos colores. El rosa UMA (`--brand` en `src/ui/Styles.html`) se usa sólo en el botón principal y en la pestaña activa; los estados usan texto de color (verde aplicada, ámbar observada, rojo error).
+El panel usa los colores UMA: rosa `#e91953` (franja superior, pestaña activa, botón principal) y carbón `#20242d`, sobre fondo gris claro con tarjetas blancas. Los estados se muestran como etiquetas suaves (verde aplicada, ámbar observada, rosa corrección recibida, azul en proceso). Hay animaciones de carga: barra superior, filas esqueleto en las tablas, indicador en botones, en la vista previa de documentos y en el ingreso. En pantallas pequeñas las filas se muestran como tarjetas y la solicitud ocupa toda la pantalla.
 
 El logotipo `src/assets/uma-logo.jpg` (proporcionado por el usuario, sin alterar) aparece pequeño en la barra superior y en la pantalla de ingreso.
 
