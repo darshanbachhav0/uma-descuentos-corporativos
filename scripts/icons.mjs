@@ -20,7 +20,11 @@ const paths={
   upload:'<path d="M12 16V4m-4 4 4-4 4 4M4 16v5h16v-5"/>',
   pen:'<path d="m14 5 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z"/>',
   book:'<path d="M12 5C8 2 3 4 3 4v15s5-2 9 1c4-3 9-1 9-1V4s-5-2-9 1Zm0 0v15"/>',
-  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>'
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
+  left:'<path d="m15 5-7 7 7 7"/>',
+  right:'<path d="m9 5 7 7-7 7"/>',
+  eye:'<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+  send:'<path d="M22 2 11 13M22 2l-7 20-4-9-9-4Z"/>'
 };
 export function renderIcons(html){
   return html.replace(/<span class="ui-icon" data-icon="([a-z-]+)"><\/span>/g,(_,name)=>{

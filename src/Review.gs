@@ -16,7 +16,7 @@ function applyDecision_(j) {
   var a=application_(j.applicationId),d=JSON.parse(j.payload);
   if(a.lastDecisionKey===j.key){j.status='DONE';put_('Decisiones',j);return;}
   assert_(Number(a.version)===d.version,'Versión incompatible durante recuperación');
-  var old=a.status;a.reviewer=j.reviewer;a.reviewedAt=j.timestamp;a.version=d.version+1;
+  var old=a.status;a.reviewer=j.reviewer;a.reviewedAt=j.timestamp;a.version=d.version+1;a.issues='';
   a.lastDecisionKey=j.key;a.emailStatus='PENDING';
   if(d.decision==='APPROVED'){
     assert_(d.siguConfirmed===true,'Confirmación SIGU requerida');a.siguConfirmedAt=j.timestamp;a.siguReference=d.siguReference;

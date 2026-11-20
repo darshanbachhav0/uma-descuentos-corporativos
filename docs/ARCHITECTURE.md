@@ -56,4 +56,16 @@ Los IDs usan una secuencia persistida bajo `LockService`. El evento se identific
 
 Los correos tienen estado independiente: `PENDING`, `SENDING`, `SENT`, `UNCERTAIN` o `CANCELLED`. `SENT` significa que MailApp aceptó la llamada; no es un acuse del buzón. No se puede garantizar envío exactamente una vez entre servicios sin una operación transaccional del proveedor. El sistema evita reintentar automáticamente los resultados inciertos y exige una resolución documentada desde gestión.
 
+## Agrupación por correo institucional
+
+Cada respuesta del formulario inicial se asocia a la solicitud del periodo con el mismo correo institucional (normalizado). La primera crea la solicitud; las siguientes reservan una nueva revisión, copian sus documentos a `Revision_N` y actualizan los datos del estudiante. Si la solicitud estaba `OBSERVADA` pasa a `CORRECCION_RECIBIDA`; si ya estaba `APLICADA_SIGU` conserva el estado y registra una alerta. Los problemas de datos (DNI, convenio, firma, ficha faltante) se guardan en `issues` y nunca descartan el envío; sólo los fallos de almacenamiento se reintentan como error. La columna `submissions` cuenta los envíos.
+
+Al desplegar esta versión, `reconcileSubmissions` ejecuta una vez `migrateToEmailGrouping_`: los envíos que la versión anterior marcó como `DUPLICATE_APPLICATION` o que fallaron sin solicitud se vuelven a procesar y se agrupan. `regroupSubmissionsByEmail` lo hace de inmediato desde el editor.
+
+`Pendientes` = todo estado distinto de `APLICADA_SIGU` (incluye `OBSERVADA`). `Por revisar` excluye `OBSERVADA`, que espera al estudiante.
+
+## Rendimiento
+
+Cada ejecución lee cada hoja una sola vez y mantiene una copia en memoria que las escrituras actualizan; adquirir el bloqueo descarta la copia para que el trabajo bloqueado parta de datos frescos. Las columnas nuevas del esquema se añaden automáticamente a hojas existentes. El disparador de correo (cada minuto) termina sin abrir Sheets cuando la propiedad `MAIL_QUEUE_STATE` indica que la cola está vacía, lo que preserva la cuota diaria de ejecución de disparadores. La lista devuelve sólo las columnas visibles y la URL del formulario se guarda en caché.
+
 El sistema está orientado a volúmenes administrativos moderados. Lee tablas para filtros y reconciliación; no sustituye un motor de base de datos para cargas masivas. Revise cuotas y tiempos de ejecución antes de ampliar el volumen.

@@ -4,7 +4,7 @@
   const storageKey='uma.management.session';
   const state={config:null,token:null,onAuthenticated:null,loginController:null,phase:''};
   const publicMethods=new Set(['managementAuthParameters','loginManagement']);
-  const methods=new Set([...publicMethods,'logoutManagement','getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck','getDocumentFile']);
+  const methods=new Set([...publicMethods,'logoutManagement','getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck','getDocumentFile','acknowledgeIssues','listUnlinkedSubmissions']);
   const show=message=>{document.getElementById('connectionMessage').textContent=message;};
   const readToken=()=>{try{return sessionStorage.getItem(storageKey)||null;}catch{return null;}};
   const saveToken=token=>{state.token=token;try{if(token)sessionStorage.setItem(storageKey,token);else sessionStorage.removeItem(storageKey);}catch{}};

@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import {fileURLToPath} from 'node:url';
 const config=JSON.parse(fs.readFileSync(new URL('../deploy/public-config.json',import.meta.url),'utf8'));
 const publicMethods=new Set(['managementAuthParameters','loginManagement']);
-const methods=new Set([...publicMethods,'logoutManagement','getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck','getDocumentFile']);
+const methods=new Set([...publicMethods,'logoutManagement','getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck','getDocumentFile','acknowledgeIssues','listUnlinkedSubmissions']);
 export function createApiServer({frontendOrigin='https://uma-descuentos-corporativos.onrender.com',appsScriptUrl=config.appsScriptUrl,fetchImpl=fetch,timeoutMs=55000}={}){
   if(!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(appsScriptUrl))throw new Error('Invalid Google service URL');
   return http.createServer(async(req,res)=>{

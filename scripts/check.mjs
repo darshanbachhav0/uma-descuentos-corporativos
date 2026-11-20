@@ -6,7 +6,7 @@ const client=fs.readFileSync('src/ui/Client.html','utf8').replace(/^<script>\s*/
 JSON.parse(fs.readFileSync('src/appsscript.json','utf8'));
 if(/(?:addFileUploadItem|asFileUploadItem)\s*\(/.test(code))throw new Error('Unsupported Forms file-upload API');
 const endpoints=[...code.matchAll(/^function ([a-zA-Z0-9]+)\([^)]*\)\s*\{/gm)].map(m=>m[1]);
-const secured=['getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck'];
+const secured=['getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck','acknowledgeIssues','listUnlinkedSubmissions'];
 for(const name of secured){if(!endpoints.includes(name))throw new Error('Missing endpoint '+name);}
 console.log('Apps Script, UI JavaScript and manifest syntax OK. Public API inventory checked.');
 for(const file of ['web/transport.js','web/student.js','web-dist/client.js'])new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});

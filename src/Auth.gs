@@ -17,7 +17,8 @@ function managementAuthParameters_(){
 function loginManagement_(input){
   managementAuthParameters_();assert_(input&&typeof input.username==='string'&&typeof input.proof==='string'&&input.username.length<=40&&/^[a-f0-9]{64}$/.test(input.proof),'Usuario o contraseña incorrectos');
   return locked_(function(){
-    var cache=CacheService.getScriptCache(),key='UMA_LOGIN_FAILURES',failed=Number(cache.get(key)||0),c=config_();
+    // Failures are counted per username so wrong guesses for another name cannot lock Treasury out.
+    var cache=CacheService.getScriptCache(),key=loginFailureKey_(input.username),failed=Number(cache.get(key)||0),c=config_();
     assert_(failed<10,'Demasiados intentos. Espere 15 minutos y vuelva a intentar.');
     var valid=equalSecret_(digest_(input.proof),c.MANAGEMENT_VERIFIER),correctUser=equalSecret_(input.username,c.MANAGEMENT_USERNAME);
     if(!valid||!correctUser){cache.put(key,String(failed+1),900);throw new Error('Usuario o contraseña incorrectos');}
@@ -26,6 +27,7 @@ function loginManagement_(input){
     audit_('gestión:'+c.MANAGEMENT_USERNAME,'AUTH_LOGIN','','Ingreso al panel');return {token:token,expiresAt:expiresAt};
   });
 }
+function loginFailureKey_(username){return 'UMA_LOGIN_FAILURES_'+digest_(String(username||'').trim().toLowerCase()).slice(0,32);}
 function managementSession_(token){
   assert_(typeof token==='string'&&/^[a-f0-9]{64}$/.test(token),'AUTH_REQUIRED: Inicie sesión para continuar.');
   var record=CacheService.getScriptCache().get('UMA_SESSION_'+digest_(token)),session=record&&JSON.parse(record),c=config_();

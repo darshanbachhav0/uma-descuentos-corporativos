@@ -1,116 +1,363 @@
 <script>
 (() => {
 'use strict';
-const $=id=>document.getElementById(id), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const labels={RECIBIDA:'Recibida',EN_REVISION:'En revisión',OBSERVADA:'Observada',CORRECCION_RECIBIDA:'Subsanación recibida',VALIDADA_PENDIENTE_SIGU:'Pendiente de SIGU',APLICADA_SIGU:'Aplicada en SIGU',PENDING:'En cola',SENDING:'Enviando',SENT:'Aceptado por Google',UNCERTAIN:'Requiere comprobación',CANCELLED:'Reemplazado'};
-let boot,view='overview',page=1,total=0,detail=null,pendingDecision=null,busyCount=0,searchTimer,listRequest=0;
-const date=v=>v?new Intl.DateTimeFormat('es-PE',{dateStyle:'short',timeStyle:'short',timeZone:'America/Lima'}).format(new Date(v)):'—';
-const badge=s=>`<span class="badge ${esc(s)}">${esc(labels[s]||s||'Sin notificación')}</span>`;
-const initials=n=>String(n||'').split(' ').filter(Boolean).slice(0,2).map(v=>v[0]).join('').toUpperCase();
-const safeUrl=value=>{try{const u=new URL(value);return u.protocol==='https:'&&(['drive.google.com','docs.google.com'].includes(u.hostname))?u.href:'#';}catch{return '#';}};
-const link=(url,text)=>`<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
-function toast(message,error=false){$('toast').textContent=message;$('toast').className='toast'+(error?' error':'');clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('toast').classList.add('hidden'),7000);}
-async function api(method,...args){
-  busyCount++;$('busy').classList.remove('hidden');
-  try{
-    if(window.UMA_DEMO)return await window.UMA_DEMO.call(method,...args);
-    if(window.UMA_REMOTE)return await window.UMA_REMOTE.call(method,...args);
-    if(!window.google?.script?.run)throw new Error('Abra el panel desde el despliegue autorizado de Google Apps Script.');
-    return await new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[method](...args));
-  }finally{if(--busyCount===0)$('busy').classList.add('hidden');}
+const $ = id => document.getElementById(id);
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const labels = {
+  RECIBIDA:'Recibida', EN_REVISION:'En revisión', OBSERVADA:'Observada', CORRECCION_RECIBIDA:'Corrección recibida',
+  VALIDADA_PENDIENTE_SIGU:'Validada · pendiente SIGU', APLICADA_SIGU:'Aplicada en SIGU',
+  PENDING:'En cola', SENDING:'Enviando', SENT:'Aceptado por Google', UNCERTAIN:'Requiere comprobación', CANCELLED:'Reemplazado',
+  DONE:'Procesado', ERROR:'Con error', PROCESSING:'Procesando'
+};
+const emailTypes = {APPROVED:'Aprobación', OBSERVED:'Observación', RECEIVED:'Acuse de recepción'};
+const VIEWS = {
+  overview:     {title:'Resumen', description:'Estado del periodo y últimas solicitudes recibidas.', list:'Solicitudes recientes', filter:{}},
+  pending:      {title:'Pendientes', description:'Toda solicitud que aún no se aplica en SIGU, incluidas las observadas.', list:'Solicitudes pendientes', filter:{pendingOnly:true}, chips:true},
+  review:       {title:'Por revisar', description:'Solicitudes que esperan una decisión de Tesorería.', list:'Por revisar', filter:{queue:'review'}},
+  observed:     {title:'Observadas', description:'Esperan la corrección del estudiante y siguen pendientes hasta su aprobación.', list:'Observadas', filter:{status:'OBSERVADA'}},
+  approved:     {title:'Aplicadas en SIGU', description:'Descuentos con registro en SIGU confirmado por Tesorería.', list:'Aplicadas en SIGU', filter:{status:'APLICADA_SIGU'}},
+  applications: {title:'Todas las solicitudes', description:'Una solicitud por correo institucional; cada nuevo envío se añade como revisión.', list:'Todas las solicitudes', filter:{}},
+  emails:       {title:'Correos', description:'Notificaciones enviadas a los estudiantes.'},
+  audit:        {title:'Auditoría', description:'Acciones registradas y errores del sistema.'},
+  settings:     {title:'Configuración', description:'Notificaciones, dominios y estado de Google Workspace.'}
+};
+const LIST_VIEWS = ['overview','pending','review','observed','approved','applications'];
+const PAGE_SIZE = 20;
+let boot, view = 'overview', page = 1, total = 0, queue = '', ids = [], detail = null, pendingDecision = null, choice = '';
+let busyCount = 0, searchTimer, listRequest = 0, previewObjectUrl = null;
+
+const date = v => v ? new Intl.DateTimeFormat('es-PE', {dateStyle:'medium', timeStyle:'short', timeZone:'America/Lima'}).format(new Date(v)) : '—';
+const shortDate = v => v ? new Intl.DateTimeFormat('es-PE', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', timeZone:'America/Lima'}).format(new Date(v)) : '—';
+const badge = s => `<span class="badge ${esc(s)}">${esc(labels[s] || s || 'Sin notificación')}</span>`;
+const initials = n => String(n || '').split(/\s+/).filter(Boolean).slice(0, 2).map(v => v[0]).join('').toUpperCase() || '·';
+const issueLines = a => String(a.issues || '').split('\n').map(s => s.trim()).filter(Boolean);
+const safeUrl = value => { try { const u = new URL(value); return u.protocol === 'https:' && ['drive.google.com','docs.google.com'].includes(u.hostname) ? u.href : '#'; } catch { return '#'; } };
+const link = (url, text) => `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
+const remember = (key, value) => { try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch { return null; } };
+
+function toast(message, error = false) {
+  $('toast').textContent = message; $('toast').className = 'toast' + (error ? ' error' : '');
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').classList.add('hidden'), error ? 9000 : 5000);
 }
-function handle(error){toast(error.message||String(error),true);}
-function filters(){return {query:$('search').value.trim(),status:$('statusFilter').value,discount:$('discountFilter').value,school:$('schoolFilter').value,from:$('fromFilter').value,to:$('toFilter').value,pendingOnly:view==='pending'};}
-function choices(id,values){while($(id).options.length>1)$(id).remove(1);values.forEach(v=>{const option=document.createElement('option');option.value=v;option.textContent=labels[v]||v;$(id).append(option);});}
-function documentIcon(){return '<span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></span>'; }
-function renderStats(s){
-  $('statTotal').textContent=s.total;$('statPending').textContent=s.pending;$('statObserved').textContent=s.observed;$('statApplied').textContent=s.applied;$('navTotal').textContent=s.total;
-  $('emailsSent').textContent=s.emailSent;$('emailsPending').textContent=s.emailPending;$('reviewHours').textContent=s.averageReviewHours+' h';$('uncertainCount').textContent=s.emailUncertain?`${s.emailUncertain} envío(s) requieren verificación del administrador.`:'';
-  const pairs=Object.entries(s.byDiscount).sort((a,b)=>b[1]-a[1]),max=Math.max(1,...pairs.map(p=>p[1]));
-  $('discountChart').innerHTML=pairs.length?pairs.map(([name,n])=>`<div class="bar-row"><span>${esc(name)}</span><div class="bar-track"><div class="bar-fill" style="width:${n/max*100}%"></div></div><strong>${n}</strong></div>`).join(''):'<div class="chart-empty">'+documentIcon()+'<p>La distribución por convenio aparecerá al recibir las primeras solicitudes.</p></div>';
+function handle(error) { toast(error.message || String(error), true); }
+
+async function api(method, ...args) {
+  if (++busyCount === 1) { $('progress').classList.remove('hidden'); clearTimeout(api.slow); api.slow = setTimeout(() => $('busy').classList.remove('hidden'), 1500); }
+  try {
+    if (window.UMA_DEMO) return await window.UMA_DEMO.call(method, ...args);
+    if (window.UMA_REMOTE) return await window.UMA_REMOTE.call(method, ...args);
+    if (!window.google?.script?.run) throw new Error('Abra el panel desde el despliegue autorizado.');
+    return await new Promise((resolve, reject) => google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[method](...args));
+  } finally {
+    if (--busyCount === 0) { clearTimeout(api.slow); $('progress').classList.add('hidden'); $('busy').classList.add('hidden'); }
+  }
 }
-async function loadApplications(){
-  const request=++listRequest,result=await api('listApplications',filters(),page,20);if(request!==listRequest)return;
-  const rows=result.rows;
-  total=result.total;renderStats(result.stats);$('resultCount').textContent=total;
-  $('applicationRows').innerHTML=rows.length?rows.map(a=>`<tr><td><strong>${esc(a.id)}</strong><small>${date(a.createdAt)}</small></td><td><div class="student-cell"><span class="student-avatar">${esc(initials(a.name))}</span><div><strong>${esc(a.name)}</strong><small>${esc(a.identityType)} ${esc(a.identityNumber)}</small></div></div></td><td class="school-cell">${esc(a.school)}</td><td><span class="discount-pill">${esc(a.discount)}</span></td><td>${badge(a.status)}${a.processingError?'<small style="color:#a23750">Error en documentos</small>':''}</td><td><button class="review-button" data-open="${esc(a.id)}">Revisar</button></td></tr>`).join(''):`<tr><td colspan="6" class="empty"><div class="empty-state">${documentIcon()}<strong>${result.stats.total?'No se encontraron resultados':'Todo listo para recibir solicitudes'}</strong><p>${result.stats.total?'Pruebe otro nombre, documento o una selección de filtros diferente.':'Los expedientes enviados por estudiantes aparecerán aquí para su revisión.'}</p></div></td></tr>`;
-  $('paginationText').textContent=total?`${(page-1)*20+1}–${Math.min(page*20,total)} de ${total} solicitudes`:'0 solicitudes';$('pageNumber').textContent=page;$('prevPage').disabled=page<=1;$('nextPage').disabled=page*20>=total;
+
+/* ---------- Lists ---------- */
+function filters() {
+  const base = VIEWS[view]?.filter || {};
+  return {...base, query:$('search').value.trim(), status:base.status || $('statusFilter').value, discount:$('discountFilter').value,
+    school:$('schoolFilter').value, from:$('fromFilter').value, to:$('toFilter').value, queue:queue || base.queue || ''};
 }
-async function navigate(next){
-  view=next;page=1;closeMenu();document.querySelectorAll('.nav').forEach(b=>{b.classList.toggle('active',b.dataset.view===view);if(b.dataset.view===view)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
-  const applicationViews=['overview','applications','pending','observed','approved'];
-  $('overviewIntro').classList.toggle('hidden',view!=='overview');$('stats').classList.toggle('hidden',!applicationViews.includes(view));$('analytics').classList.toggle('hidden',view!=='overview');$('applicationsPanel').classList.toggle('hidden',!applicationViews.includes(view));
-  $('emailsPanel').classList.toggle('hidden',view!=='emails');$('auditPanel').classList.toggle('hidden',view!=='audit');$('settingsPanel').classList.toggle('hidden',view!=='settings');
-  const titles={overview:'Resumen de solicitudes',applications:'Todas las solicitudes',pending:'Pendientes de revisión',observed:'Solicitudes observadas',approved:'Descuentos aplicados en SIGU',emails:'Historial de correos',audit:'Auditoría del sistema',settings:'Configuración del sistema'};
-  $('pageTitle').textContent=titles[view];$('pageDescription').textContent=view==='overview'?'Cada expediente, en su lugar. Cada decisión, con seguimiento.':'Gestione el proceso de descuentos corporativos del periodo académico.';
-  $('export').classList.toggle('hidden',!applicationViews.includes(view));
-  if(applicationViews.includes(view)){$('statusFilter').value=view==='observed'?'OBSERVADA':view==='approved'?'APLICADA_SIGU':'';await loadApplications();}
-  else if(view==='emails')await loadEmails();else if(view==='settings')await loadHealth();else if(view==='audit')await loadAudit();
+function choices(id, values) {
+  while ($(id).options.length > 1) $(id).remove(1);
+  values.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = labels[v] || v; $(id).append(o); });
 }
-let previewObjectUrl=null;
-function releasePreview(){if(previewObjectUrl){URL.revokeObjectURL(previewObjectUrl);previewObjectUrl=null;}}
-function fileBlob(file){const allowed=['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];if(!file||!allowed.includes(file.mimeType)||typeof file.data!=='string'||file.data.length>16*1024*1024)throw new Error('Archivo inválido');const bytes=Uint8Array.from(atob(file.data),v=>v.charCodeAt(0));return new Blob([bytes],{type:file.mimeType});}
-function downloadFile(file){const url=URL.createObjectURL(fileBlob(file)),a=document.createElement('a');a.href=url;a.download=file.name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);}
-async function previewDocument(fileId){const file=await api('getDocumentFile',detail.application.id,fileId);releasePreview();previewObjectUrl=URL.createObjectURL(fileBlob(file));$('documentPreview').src=previewObjectUrl;$('documentPreview').classList.remove('hidden');}
-function renderDetail(){
+function renderStats(s) {
+  const set = (id, value) => { $(id).textContent = value; };
+  set('statPending', s.pending); set('statReview', s.toReview ?? s.pending); set('statObserved', s.observed); set('statApplied', s.applied);
+  set('statPendingDetail', `${s.toReview ?? 0} por revisar · ${s.observed} esperando al estudiante`);
+  set('navPending', s.pending); set('navReview', s.toReview ?? 0); set('navObserved', s.observed); set('navApplied', s.applied); set('navTotal', s.total);
+  set('statTotalLabel', `${s.total} solicitud${s.total === 1 ? '' : 'es'} en el periodo`);
+  set('emailsSent', s.emailSent); set('emailsPending', s.emailPending); set('reviewHours', s.averageReviewHours + ' h');
+  set('uncertainCount', s.emailUncertain ? `${s.emailUncertain} envío(s) requieren comprobación en Correos.` : '');
+  const notes = [];
+  if (s.attention) notes.push(`<span><strong>${s.attention}</strong> solicitud${s.attention === 1 ? '' : 'es'} con alertas por revisar</span><button class="text-link" data-attention>Ver</button>`);
+  if (s.unlinked) notes.push(`<span><strong>${s.unlinked}</strong> envío(s) del formulario no se pudieron procesar todavía; el sistema los reintenta automáticamente.</span>${boot?.isAdmin ? '<button class="text-link" data-goto="audit">Ver errores</button>' : ''}`);
+  $('attentionBar').innerHTML = notes.map(n => `<div>${n}</div>`).join('');
+  $('attentionBar').classList.toggle('hidden', !notes.length);
+  const pairs = Object.entries(s.byDiscount || {}).sort((a, b) => b[1] - a[1]), max = Math.max(1, ...pairs.map(p => p[1]));
+  $('discountChart').innerHTML = pairs.length
+    ? pairs.map(([name, n]) => `<div class="bar-row"><span>${esc(name)}</span><div class="bar-track"><div class="bar-fill" style="width:${n / max * 100}%"></div></div><strong>${n}</strong></div>`).join('')
+    : '<div class="chart-empty"><span class="ui-icon" data-icon="file"></span><p>La distribución por convenio aparecerá al recibir las primeras solicitudes.</p></div>';
+}
+function applicationRow(a) {
+  const alerts = issueLines(a).length, many = Number(a.submissions) > 1;
+  return `<tr class="${alerts || a.processingError ? 'flagged' : ''}" data-open="${esc(a.id)}" tabindex="0">
+    <td><div class="student-cell"><span class="student-avatar">${esc(initials(a.name))}</span><div><strong>${esc(a.name || 'Sin nombre')}</strong><small>${esc(a.institutionalEmail || 'Sin correo institucional')}</small><small>${esc(a.identityType)} ${esc(a.identityNumber)}</small></div></div></td>
+    <td><strong class="mono">${esc(a.id)}</strong><small>${many ? 'Último envío ' : 'Enviada '}${shortDate(a.lastSubmissionAt || a.createdAt)}</small>${many ? `<span class="pill">${esc(a.submissions)} envíos</span>` : ''}</td>
+    <td><span class="discount-pill">${esc(a.discount || '—')}</span><small class="school">${esc(a.school)}</small></td>
+    <td>${badge(a.status)}${a.status === 'OBSERVADA' ? '<small>Esperando al estudiante</small>' : ''}${alerts ? `<span class="flag-pill">${alerts} alerta${alerts === 1 ? '' : 's'}</span>` : ''}${a.processingError ? '<span class="flag-pill error">Error en documentos</span>' : ''}</td>
+    <td class="row-action"><button class="review-button" data-open="${esc(a.id)}">Abrir</button></td></tr>`;
+}
+async function loadApplications() {
+  const request = ++listRequest, size = view === 'overview' ? 10 : PAGE_SIZE;
+  const result = await api('listApplications', filters(), page, size);
+  if (request !== listRequest) return;
+  total = result.total; ids = result.ids || result.rows.map(r => r.id);
+  renderStats(result.stats); $('resultCount').textContent = total;
+  const filtered = filters();
+  const searching = filtered.query || $('statusFilter').value || filtered.discount || filtered.school || filtered.from || filtered.to || queue;
+  $('applicationRows').innerHTML = result.rows.length ? result.rows.map(applicationRow).join('') :
+    `<tr><td colspan="5" class="empty"><div class="empty-state"><span class="ui-icon" data-icon="file"></span><strong>${searching ? 'Sin resultados' : result.stats.total ? 'Nada pendiente aquí' : 'Aún no hay solicitudes'}</strong><p>${searching ? 'Pruebe otro nombre, documento o filtro.' : result.stats.total ? 'Las solicitudes de esta vista aparecerán aquí.' : 'Los envíos del formulario de estudiantes aparecerán aquí automáticamente.'}</p></div></td></tr>`;
+  $('paginationText').textContent = total ? `${(page - 1) * size + 1}–${Math.min(page * size, total)} de ${total}` : '0 solicitudes';
+  $('pageNumber').textContent = page; $('prevPage').disabled = page <= 1; $('nextPage').disabled = page * size >= total;
+  $('applicationsPanel').querySelector('.table-footer').classList.toggle('hidden', view === 'overview' && total <= size);
+}
+async function navigate(next) {
+  view = VIEWS[next] ? next : 'overview'; page = 1; queue = ''; closeMenu();
+  document.querySelectorAll('.nav').forEach(b => { const on = b.dataset.view === view; b.classList.toggle('active', on); on ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'); });
+  const isList = LIST_VIEWS.includes(view), v = VIEWS[view];
+  $('pageTitle').textContent = v.title; $('pageDescription').textContent = v.description;
+  $('stats').classList.toggle('hidden', view !== 'overview'); $('analytics').classList.toggle('hidden', view !== 'overview');
+  $('applicationsPanel').classList.toggle('hidden', !isList); $('attentionBar').classList.toggle('hidden', !isList || !$('attentionBar').innerHTML);
+  $('emailsPanel').classList.toggle('hidden', view !== 'emails'); $('auditPanel').classList.toggle('hidden', view !== 'audit'); $('settingsPanel').classList.toggle('hidden', view !== 'settings');
+  $('export').classList.toggle('hidden', !isList);
+  if (isList) {
+    $('listTitle').firstChild.textContent = v.list + ' ';
+    $('queueChips').classList.toggle('hidden', !v.chips);
+    document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c.dataset.queue === ''));
+    $('statusFilter').value = v.filter.status || ''; $('statusFilter').disabled = !!v.filter.status;
+    await loadApplications();
+  } else if (view === 'emails') await loadEmails();
+  else if (view === 'settings') await loadHealth();
+  else if (view === 'audit') await loadAudit();
+}
+
+/* ---------- Documents ---------- */
+function releasePreview() { if (previewObjectUrl) { URL.revokeObjectURL(previewObjectUrl); previewObjectUrl = null; } }
+function fileBlob(file) {
+  const allowed = ['application/pdf','image/jpeg','image/png','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+  if (!file || !allowed.includes(file.mimeType) || typeof file.data !== 'string' || file.data.length > 16 * 1024 * 1024) throw new Error('Archivo inválido');
+  return new Blob([Uint8Array.from(atob(file.data), v => v.charCodeAt(0))], {type:file.mimeType});
+}
+function downloadFile(file) {
+  const url = URL.createObjectURL(fileBlob(file)), a = document.createElement('a');
+  a.href = url; a.download = file.name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+const fileCache = new Map();
+async function documentFile(fileId) {
+  const key = detail.application.id + ':' + fileId;
+  if (!fileCache.has(key)) { if (fileCache.size > 12) fileCache.delete(fileCache.keys().next().value); fileCache.set(key, api('getDocumentFile', detail.application.id, fileId).catch(e => { fileCache.delete(key); throw e; })); }
+  return fileCache.get(key);
+}
+async function previewDocument(fileId) {
+  const id = detail.application.id;
+  document.querySelectorAll('[data-preview]').forEach(b => b.closest('.doc-item').classList.toggle('active', b.dataset.preview === fileId));
+  $('previewWrap').classList.remove('hidden'); $('previewWrap').classList.add('loading');
+  try {
+    const file = await documentFile(fileId);
+    if (!detail || detail.application.id !== id) return;
+    releasePreview(); previewObjectUrl = URL.createObjectURL(fileBlob(file));
+    $('documentPreview').src = previewObjectUrl; $('previewName').textContent = file.name;
+  } finally { $('previewWrap')?.classList.remove('loading'); }
+}
+
+/* ---------- Application detail ---------- */
+function documentsByRevision(documents, current) {
+  const groups = {};
+  documents.forEach(d => (groups[d.revision] = groups[d.revision] || []).push(d));
+  return Object.keys(groups).map(Number).sort((a, b) => b - a).map(rev => `<div class="rev-group"><div class="rev-head">Revisión ${rev}${rev === Number(current) ? ' <span class="pill">Actual</span>' : ''}</div>${groups[rev].map(d => `<div class="doc-item"><div><span class="ui-icon" data-icon="file"></span><div><strong>${esc(d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Documento sustentatorio')}</strong><span class="muted">${esc(d.name)}</span></div></div><div><button data-preview="${esc(d.fileId)}"><span class="ui-icon" data-icon="eye"></span>Ver</button><button data-download="${esc(d.fileId)}"><span class="ui-icon" data-icon="download"></span>Descargar</button></div></div>`).join('')}</div>`).join('');
+}
+function decisionPanel(a) {
+  const editable = !['APLICADA_SIGU','OBSERVADA'].includes(a.status) && !a.processingError;
+  if (!editable) {
+    const message = a.status === 'APLICADA_SIGU' ? 'El descuento ya fue aplicado en SIGU.' : a.status === 'OBSERVADA' ? 'Esperando la corrección del estudiante. La solicitud sigue pendiente; cuando el estudiante vuelva a enviar el formulario con su correo institucional pasará a “Corrección recibida”.' : 'La revisión está bloqueada hasta que se resuelva el error de documentos.';
+    return `<div class="notice">${message}</div>${a.status === 'OBSERVADA' ? `<p class="muted">Enlace de corrección vigente hasta: <strong>${date(a.correctionExpiresAt)}</strong></p><button id="renewCorrection" class="button secondary">Enviar un nuevo enlace de corrección</button>` : ''}`;
+  }
+  const openNext = remember('uma.openNext') !== 'false';
+  return `<div class="choice-grid" role="radiogroup" aria-label="Decisión">
+      <button type="button" class="choice approve" role="radio" aria-checked="false" data-choice="APPROVED"><span class="ui-icon" data-icon="check"></span><span><strong>Aprobar</strong><small>El descuento ya está registrado en SIGU</small></span></button>
+      <button type="button" class="choice observe" role="radio" aria-checked="false" data-choice="OBSERVED"><span class="ui-icon" data-icon="alert"></span><span><strong>Observar</strong><small>Pedir una corrección al estudiante</small></span></button>
+    </div>
+    <form id="reviewForm" novalidate>
+      <div id="approvalFields" class="hidden"><label class="check"><input type="checkbox" id="siguConfirmed">Confirmo que registré el descuento en SIGU. Este panel no lo registra automáticamente.</label><label class="field">Referencia SIGU <span class="optional">(opcional)</span><input id="siguReference" maxlength="200" placeholder="N.º de operación o comentario"></label></div>
+      <div id="observationFields" class="hidden"><label class="field">Motivo<select id="category"><option value="">Seleccione un motivo</option>${boot.categories.map(c => `<option>${esc(c)}</option>`).join('')}</select><small>Al elegir un motivo se propone un texto que puede editar.</small></label><label class="field">Observación<textarea id="observation" maxlength="3000" placeholder="Qué debe corregirse…"></textarea></label><label class="field">Cómo corregir<textarea id="instructions" maxlength="3000" placeholder="Qué archivos o datos debe enviar…"></textarea></label></div>
+      <button id="submitDecision" class="button primary review-submit" type="submit" disabled><span class="ui-icon" data-icon="send"></span>Guardar y notificar</button>
+      <label class="check small"><input type="checkbox" id="openNext" ${openNext ? 'checked' : ''}>Abrir la siguiente solicitud después de guardar</label>
+      <p class="muted">Se notificará a <strong>${esc(a.recipient || 'sin correo válido')}</strong></p>
+    </form>
+    <details class="more"><summary>Marcar etapa sin notificar</summary><div class="sub-actions"><button class="button secondary compact" data-stage="EN_REVISION">En revisión</button><button class="button secondary compact" data-stage="VALIDADA_PENDIENTE_SIGU">Validada · pendiente SIGU</button></div></details>`;
+}
+function renderDetail() {
   releasePreview();
-  const {application:a,documents,history,observations,emails}=detail;
-  $('detailTitle').textContent=a.name;$('detailCode').textContent=a.id+' · REVISIÓN '+a.revision;
-  const editable=!['APLICADA_SIGU','OBSERVADA'].includes(a.status)&&!a.processingError;
-  $('detailContent').innerHTML=`<div class="detail-grid"><section class="detail-left">${badge(a.status)}<dl class="data-grid">${[['Documento',a.identityType+' '+a.identityNumber],['Convenio',a.discount+(a.otherDiscount?' · '+a.otherDiscount:'')],['Correo institucional',a.institutionalEmail],['Correo personal',a.personalEmail||'No registrado'],['Escuela profesional',a.school],['Fecha de envío',date(a.createdAt)],['Revisor',a.reviewer||'Por asignar'],['Correo de notificación',a.recipient]].map(([k,v])=>`<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>${a.processingError?`<div class="error-box">${esc(a.processingError)}. El administrador debe corregir la configuración o el archivo y reintentar el evento.</div>`:''}<div class="section-label">Documentación · Todas las revisiones</div><div class="doc-list">${documents.map(d=>`<div class="doc-item"><div><strong>${esc(d.name)}</strong><br><span class="muted">Revisión ${d.revision} · ${d.kind==='socioeconomic'?'Ficha socioeconómica':'Sustento'}</span></div><div><button data-preview="${esc(d.fileId)}">Vista previa</button> <button data-download="${esc(d.fileId)}">Descargar</button></div></div>`).join('')||'<p class="muted">Sin documentos procesados.</p>'}</div><iframe id="documentPreview" class="preview hidden" title="Vista previa del documento" referrerpolicy="no-referrer" allow="fullscreen"></iframe><p class="muted">Revise la ficha y los sustentos. Puede verlos aquí o descargarlos.</p><div class="section-label">Historial del expediente</div><div class="timeline">${history.map(h=>`<div class="timeline-item"><strong>${esc(labels[h.toStatus]||h.toStatus)}</strong><div>${esc(h.detail)}</div><small>${date(h.timestamp)} · ${esc(h.reviewer)}</small></div>`).join('')}</div>${observations.length?'<div class="section-label">Observaciones anteriores</div>'+observations.map(o=>`<div class="notice"><strong>${esc(o.category)}</strong><p>${esc(o.observation)}</p><div>${esc(o.instructions)}</div><small>${date(o.timestamp)} · Revisión ${o.revision}</small></div>`).join(''):''}</section><section class="detail-right"><h2>Resultado de la revisión</h2><p class="muted">Revise todos los documentos antes de registrar una decisión.</p>${editable?`<form id="reviewForm"><label class="field">Decisión<select id="decision" required><option value="">Seleccione un resultado</option><option value="APPROVED">COMPLETADO — APROBADO</option><option value="OBSERVED">COMPLETADO — CON OBSERVACIÓN</option></select></label><div id="approvalFields" class="hidden"><label class="check"><input type="checkbox" id="siguConfirmed">Confirmo que el descuento ya fue registrado en SIGU. Este paso no registra el descuento automáticamente.</label><label class="field">Referencia SIGU (opcional)<input id="siguReference" maxlength="200" placeholder="Referencia de registro"></label></div><div id="observationFields" class="hidden"><label class="field">Categoría<select id="category"><option value="">Seleccione una categoría</option>${boot.categories.map(c=>`<option>${esc(c)}</option>`).join('')}</select></label><label class="field">Detalle de la observación<textarea id="observation" maxlength="3000" placeholder="Explique qué debe corregirse…"></textarea></label><label class="field">Instrucciones para subsanar<textarea id="instructions" maxlength="3000" placeholder="Indique qué archivos o datos debe presentar…"></textarea></label></div><button class="button primary review-submit" type="submit">Guardar y notificar</button><p class="muted">Destinatario: ${esc(a.recipient)}<br>Remitente: ${esc(boot.owner)}</p></form><div class="sub-actions"><button class="button secondary" data-stage="EN_REVISION">Marcar en revisión</button><button class="button secondary" data-stage="VALIDADA_PENDIENTE_SIGU">Validada · pendiente SIGU</button></div>`:`<div class="notice">${a.status==='APLICADA_SIGU'?'El registro del descuento en SIGU ya fue confirmado.':a.status==='OBSERVADA'?'En espera de que el estudiante presente sus documentos corregidos.':'La revisión está bloqueada por un error de procesamiento.'}</div>${a.status==='OBSERVADA'?'<button id="renewCorrection" class="button secondary">Renovar enlace de subsanación</button>':''}`}<div class="section-label">Notificaciones</div>${emails.map(m=>`<div class="timeline-item"><p>${badge(m.status)} <strong>${m.type==='APPROVED'?'Aprobación':'Observación'}</strong></p><small>${esc(m.recipient)}<br>${date(m.sentAt||m.createdAt)}</small>${m.error?`<p class="muted">${esc(m.error)}</p>`:''}</div>`).join('')||'<p class="muted">Aún no se han generado notificaciones.</p>'}<p class="muted">Los mensajes se procesan mediante el disparador de la cuenta propietaria.</p></section></div>`;
-  if(editable){$('decision').onchange=()=>{$('approvalFields').classList.toggle('hidden',$('decision').value!=='APPROVED');$('observationFields').classList.toggle('hidden',$('decision').value!=='OBSERVED');};$('reviewForm').onsubmit=prepareDecision;}
+  const {application:a, documents, history, observations, emails} = detail, submissions = detail.submissions || [];
+  const position = ids.indexOf(a.id), alerts = issueLines(a);
+  $('detailTitle').textContent = a.name || 'Sin nombre';
+  $('detailCode').textContent = `${a.id} · REVISIÓN ${a.revision}${Number(a.submissions) > 1 ? ' · ' + a.submissions + ' ENVÍOS' : ''}`;
+  $('detailBadges').innerHTML = badge(a.status) + (alerts.length ? `<span class="flag-pill">${alerts.length} alerta${alerts.length === 1 ? '' : 's'}</span>` : '');
+  $('detailPosition').textContent = position >= 0 ? `${position + 1} de ${ids.length}` : '';
+  $('prevDetail').disabled = position <= 0; $('nextDetail').disabled = position < 0 || position >= ids.length - 1;
+  const data = [['Correo institucional', a.institutionalEmail], ['Correo personal', a.personalEmail || 'No registrado'], ['Documento', `${a.identityType} ${a.identityNumber}`], ['Escuela profesional', a.school], ['Convenio', a.discount + (a.otherDiscount ? ' · ' + a.otherDiscount : '')], ['Primer envío', date(a.createdAt)], ['Último envío', date(a.lastSubmissionAt || a.createdAt)], ['Revisor', a.reviewer || 'Sin asignar']];
+  $('detailContent').innerHTML = `<div class="detail-grid"><section class="detail-left">
+    ${alerts.length ? `<div class="alert-box"><div><strong>Revise estas alertas del envío</strong><ul>${alerts.map(i => `<li>${esc(i)}</li>`).join('')}</ul></div><button class="button secondary compact" data-ack>Marcar como revisadas</button></div>` : ''}
+    ${a.processingError ? `<div class="error-box"><strong>Error al procesar documentos:</strong> ${esc(a.processingError)}<br><small>El sistema reintenta automáticamente. Si persiste, el administrador debe revisar el archivo en Auditoría.</small></div>` : ''}
+    <dl class="data-grid">${data.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
+    <div class="section-label">Documentos</div>
+    <div class="doc-list">${documents.length ? documentsByRevision(documents, a.revision) : '<p class="muted">Sin documentos procesados.</p>'}</div>
+    <div id="previewWrap" class="preview-wrap hidden"><div class="preview-bar"><span id="previewName" class="muted"></span></div><iframe id="documentPreview" class="preview" title="Vista previa del documento" referrerpolicy="no-referrer" allow="fullscreen"></iframe></div>
+    ${observations.length ? '<div class="section-label">Observaciones enviadas</div>' + observations.map(o => `<div class="notice"><strong>${esc(o.category)}</strong><p>${esc(o.observation)}</p><div>${esc(o.instructions)}</div><small>${date(o.timestamp)} · Revisión ${esc(o.revision)}</small></div>`).join('') : ''}
+    <details class="more history" ${submissions.length > 1 ? 'open' : ''}><summary>Envíos del estudiante (${submissions.length})</summary><div class="timeline">${submissions.map(e => `<div class="timeline-item"><strong>Revisión ${esc(e.revision)}${e.correction ? ' · formulario de corrección' : ''}</strong> ${e.status === 'DONE' ? '' : badge(e.status)}<small>${date(e.timestamp)}</small>${e.error ? `<div class="muted">${esc(e.error)}</div>` : ''}</div>`).join('') || '<p class="muted">Sin registros.</p>'}</div></details>
+    <details class="more history"><summary>Historial de estados (${history.length})</summary><div class="timeline">${history.map(h => `<div class="timeline-item"><strong>${esc(labels[h.toStatus] || h.toStatus)}</strong><div>${esc(h.detail)}</div><small>${date(h.timestamp)} · ${esc(h.reviewer)}</small></div>`).join('')}</div></details>
+  </section><section class="detail-right"><h2>Decisión</h2>${decisionPanel(a)}
+    <div class="section-label">Correos</div>${emails.map(m => `<div class="mail-item">${badge(m.status)} <strong>${esc(emailTypes[m.type] || m.type)}</strong><small>${esc(m.recipient)} · ${date(m.sentAt || m.createdAt)}</small>${m.error ? `<small class="muted">${esc(m.error)}</small>` : ''}</div>`).join('') || '<p class="muted">Aún no se enviaron correos.</p>'}
+  </section></div>`;
+  wireDecision();
+  const first = documents.find(d => Number(d.revision) === Number(a.revision)) || documents[0];
+  if (first && !window.UMA_DEMO) previewDocument(first.fileId).catch(handle);
 }
-async function openDetail(id){detail=await api('getApplication',id);renderDetail();if(!$('detailDialog').open)$('detailDialog').showModal();}
-function prepareDecision(event){
-  event.preventDefault();const a=detail.application,decision=$('decision').value;
-  if(!decision)return toast('Seleccione una decisión.',true);
-  if(decision==='APPROVED'&&!$('siguConfirmed').checked)return toast('Confirme primero el registro real en SIGU.',true);
-  if(decision==='OBSERVED'&&(!$('category').value||$('observation').value.trim().length<10||$('instructions').value.trim().length<10))return toast('Complete la categoría, la observación y las instrucciones (mínimo 10 caracteres).',true);
-  pendingDecision={requestId:crypto.randomUUID(),id:a.id,version:a.version,decision,siguConfirmed:$('siguConfirmed').checked,siguReference:$('siguReference').value,category:$('category').value,observation:$('observation').value,instructions:$('instructions').value};
-  $('confirmText').textContent=`${decision==='APPROVED'?'Confirmará que el descuento ya fue ingresado en SIGU':'Registrará la observación y solicitará la subsanación'} para ${a.name}. Se enviará una notificación a ${a.recipient}.`;$('confirmDialog').showModal();
+function wireDecision() {
+  choice = '';
+  document.querySelectorAll('[data-choice]').forEach(button => button.onclick = () => selectChoice(button.dataset.choice));
+  if (!$('reviewForm')) return;
+  $('reviewForm').onsubmit = prepareDecision;
+  $('openNext').onchange = () => remember('uma.openNext', String($('openNext').checked));
+  $('category').onchange = () => {
+    const template = boot.templates?.[$('category').value];
+    if (!template) return;
+    if (!$('observation').value.trim() || $('observation').dataset.auto) { $('observation').value = template[0]; $('observation').dataset.auto = '1'; }
+    if (!$('instructions').value.trim() || $('instructions').dataset.auto) { $('instructions').value = template[1]; $('instructions').dataset.auto = '1'; }
+  };
+  ['observation','instructions'].forEach(id => $(id).oninput = () => delete $(id).dataset.auto);
 }
-async function confirmDecision(){
-  $('confirmDecision').disabled=true;
-  try{await api('saveDecision',pendingDecision);$('confirmDialog').close();toast('Decisión guardada. La notificación quedó en la cola de la cuenta propietaria.');await openDetail(pendingDecision.id);await loadApplications();pendingDecision=null;}
-  catch(e){handle(e);}finally{$('confirmDecision').disabled=false;}
+function selectChoice(value) {
+  choice = value;
+  document.querySelectorAll('[data-choice]').forEach(b => { const on = b.dataset.choice === value; b.classList.toggle('selected', on); b.setAttribute('aria-checked', String(on)); });
+  $('approvalFields').classList.toggle('hidden', value !== 'APPROVED'); $('observationFields').classList.toggle('hidden', value !== 'OBSERVED');
+  $('submitDecision').disabled = false;
+  $('submitDecision').lastChild.textContent = value === 'APPROVED' ? 'Aprobar y notificar' : 'Enviar observación';
+  (value === 'APPROVED' ? $('siguConfirmed') : $('category')).focus();
 }
-async function loadEmails(){const rows=await api('listEmails');$('emailRows').innerHTML=rows.length?rows.map(m=>`<tr><td><button class="review-button" data-open="${esc(m.applicationId)}">${esc(m.applicationId)}</button></td><td>${esc(m.recipient)}</td><td><strong>${m.type==='APPROVED'?'Aprobación':'Observación'}</strong><small>${date(m.sentAt||m.createdAt)}</small></td><td>${badge(m.status)}${m.error?`<small>${esc(m.error)}</small>`:''}</td><td>${boot.isAdmin&&m.status==='UNCERTAIN'?`<button class="button secondary compact" data-resolve="${esc(m.key)}" data-resolution="CONFIRM_SENT">Confirmar enviado</button> <button class="button secondary compact" data-resolve="${esc(m.key)}" data-resolution="REQUEUE">Reintentar</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="empty">No hay notificaciones registradas.</td></tr>';}
-async function loadHealth(){const h=await api('runSystemHealthCheck');$('healthContent').innerHTML=`<p>${h.ready?'✓ Configuración básica verificada':'Configuración pendiente'}</p><ul class="health-list">${h.issues.map(i=>`<li>${esc(i)}</li>`).join('')}</ul><p class="muted">Cuota del usuario actual: ${h.quota}. La cuota de envío real es la de la cuenta propietaria.<br>Disparadores visibles para esta cuenta: ${h.triggers.length}.</p>${h.forms.map(f=>`<p>${link(f.editUrl,f.type==='GOOGLE_FORM_ID'?'Editar formulario de solicitud':'Editar formulario de subsanación')} · ${f.accepting?'Abierto':'Cerrado'}</p>`).join('')}`;}
-async function loadAudit(){const result=await api('listAudit');$('auditContent').innerHTML='<h2>Errores registrados</h2>'+(result.errors.map(e=>`<div class="error-box"><strong>${esc(e.context)}</strong> · ${date(e.timestamp)}<br>${esc(e.message)}</div>`).join('')||'<p class="muted">Sin errores registrados.</p>')+'<h2>Últimas acciones</h2><div class="timeline">'+result.audit.map(e=>`<div class="timeline-item"><strong>${esc(e.action)}</strong> · ${esc(e.applicationId)}<div>${esc(e.detail)}</div><small>${date(e.timestamp)} · ${esc(e.actor)}</small></div>`).join('')+'</div>';}
-async function init(){
-  boot=await api('getBootstrap');$('actor').textContent=boot.actor;$('avatar').textContent=initials(boot.actor);$('period').textContent=boot.period;$('headingPeriod').textContent=boot.period;$('sheetLink').href=safeUrl(boot.spreadsheet);$('emailEnabled').checked=boot.emailEnabled;$('pausedBanner').classList.toggle('hidden',boot.emailEnabled);$('demoBanner').classList.toggle('hidden',!window.UMA_DEMO);
-  $('domains').value=boot.domains||'';document.querySelectorAll('.admin-only').forEach(e=>e.classList.toggle('hidden',!boot.isAdmin));choices('statusFilter',boot.states);choices('discountFilter',boot.discounts);choices('schoolFilter',boot.schools);await loadApplications();
-  if(window.UMA_DEMO)$('logoutManagement').classList.add('hidden');
-  if(window.UMA_REMOTE)window.UMA_REMOTE.connected();
-  const linked=new URLSearchParams(location.hash.slice(1)),applicationId=linked.get('solicitud');if(applicationId){try{await openDetail(applicationId);if(linked.get('documento'))await previewDocument(linked.get('documento'));}catch(error){handle(error);}}
+async function openDetail(id) {
+  detail = await api('getApplication', id);
+  renderDetail();
+  if (!$('detailDialog').open) $('detailDialog').showModal();
+  $('detailDialog').scrollTop = 0; $('detailDialog').querySelector('.detail-grid')?.scrollTo?.(0, 0);
 }
-$('navigation').onclick=e=>{const button=e.target.closest('[data-view]');if(button)navigate(button.dataset.view).catch(handle);};
-function closeMenu(){const open=document.querySelector('.sidebar').classList.contains('open');document.querySelector('.sidebar').classList.remove('open');$('mobileMenu').setAttribute('aria-expanded','false');if(open&&matchMedia('(max-width:850px)').matches)$('mobileMenu').focus();}
-$('mobileMenu').onclick=()=>{const open=document.querySelector('.sidebar').classList.toggle('open');$('mobileMenu').setAttribute('aria-expanded',String(open));};
-$('menuBackdrop').onclick=closeMenu;document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu();});
-$('refresh').onclick=()=>navigate(view).catch(handle);
-$('filters').onsubmit=e=>{e.preventDefault();page=1;loadApplications().catch(handle);};
-$('search').oninput=()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{page=1;loadApplications().catch(handle);},300);};
-['statusFilter','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id=>$(id).onchange=()=>{page=1;loadApplications().catch(handle);});
-$('advancedToggle').onclick=()=>{const hidden=$('advancedFilters').classList.toggle('hidden');$('advancedToggle').setAttribute('aria-expanded',String(!hidden));};
-$('clearFilters').onclick=()=>{['search','statusFilter','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id=>$(id).value='');page=1;loadApplications().catch(handle);};
-$('prevPage').onclick=()=>{page--;loadApplications().catch(handle);};$('nextPage').onclick=()=>{page++;loadApplications().catch(handle);};
-$('closeDetail').onclick=()=>$('detailDialog').close();$('cancelDecision').onclick=()=>$('confirmDialog').close();$('confirmDecision').onclick=confirmDecision;
-$('detailDialog').addEventListener('close',()=>{const frame=$('documentPreview');if(frame)frame.src='about:blank';releasePreview();});
-document.addEventListener('click',async e=>{
-  const open=e.target.closest('[data-open]'),preview=e.target.closest('[data-preview]'),download=e.target.closest('[data-download]'),stage=e.target.closest('[data-stage]'),resolve=e.target.closest('[data-resolve]');
-  try{
-    if(open)await openDetail(open.dataset.open);
-    if(preview)await previewDocument(preview.dataset.preview);
-    if(download)downloadFile(await api('getDocumentFile',detail.application.id,download.dataset.download));
-    if(stage){await api('setReviewStatus',detail.application.id,detail.application.version,stage.dataset.stage);await openDetail(detail.application.id);await loadApplications();toast('Estado actualizado.');}
-    if(e.target.id==='renewCorrection'){await api('renewCorrection',detail.application.id);await openDetail(detail.application.id);toast('Nuevo enlace generado y notificación en cola.');}
-    if(resolve){const note=prompt(resolve.dataset.resolution==='REQUEUE'?'Tras comprobar que el mensaje no fue enviado, documente la verificación. Reintentar puede duplicarlo si ya fue aceptado.':'Documente cómo comprobó que el mensaje fue enviado.');if(note){await api('resolveEmail',resolve.dataset.resolve,resolve.dataset.resolution,note);await loadEmails();}}
-  }catch(error){handle(error);}
+async function step(offset) {
+  const position = ids.indexOf(detail?.application?.id), next = ids[position + offset];
+  if (next) await openDetail(next);
+}
+function prepareDecision(event) {
+  event.preventDefault();
+  const a = detail.application;
+  if (!choice) return toast('Elija Aprobar u Observar.', true);
+  if (choice === 'APPROVED' && !$('siguConfirmed').checked) return toast('Confirme primero que registró el descuento en SIGU.', true);
+  if (choice === 'OBSERVED' && (!$('category').value || $('observation').value.trim().length < 10 || $('instructions').value.trim().length < 10)) return toast('Elija un motivo y complete la observación y cómo corregir (mínimo 10 caracteres).', true);
+  pendingDecision = {requestId:crypto.randomUUID(), id:a.id, version:a.version, decision:choice, siguConfirmed:$('siguConfirmed').checked, siguReference:$('siguReference').value, category:$('category').value, observation:$('observation').value, instructions:$('instructions').value};
+  $('confirmTitle').textContent = choice === 'APPROVED' ? 'Confirmar aprobación' : 'Confirmar observación';
+  $('confirmText').textContent = `${choice === 'APPROVED' ? 'Confirmará que el descuento ya está registrado en SIGU' : 'Se registrará la observación y se pedirá la corrección'} para ${a.name}. Se enviará un correo a ${a.recipient}.`;
+  $('confirmDialog').showModal();
+}
+async function confirmDecision() {
+  $('confirmDecision').disabled = true;
+  try {
+    const id = pendingDecision.id, position = ids.indexOf(id), goNext = $('openNext')?.checked;
+    await api('saveDecision', pendingDecision);
+    $('confirmDialog').close(); pendingDecision = null;
+    toast(choice === 'APPROVED' ? 'Aprobación guardada. El correo quedó en cola.' : 'Observación guardada. El correo con el enlace de corrección quedó en cola.');
+    const before = ids.slice();
+    await loadApplications();
+    const next = goNext ? (ids.find((x, i) => i >= position && x !== id) || before.slice(position + 1).find(x => ids.includes(x))) : null;
+    if (next) await openDetail(next);
+    else if (goNext) { $('detailDialog').close(); toast('No quedan más solicitudes en esta lista.'); }
+    else await openDetail(id);
+  } catch (e) { handle(e); } finally { $('confirmDecision').disabled = false; }
+}
+
+/* ---------- Other views ---------- */
+async function loadEmails() {
+  const rows = await api('listEmails');
+  $('emailRows').innerHTML = rows.length ? rows.map(m => `<tr><td><button class="review-button" data-open="${esc(m.applicationId)}">${esc(m.applicationId)}</button></td><td>${esc(m.recipient)}</td><td><strong>${esc(emailTypes[m.type] || m.type)}</strong><small>${date(m.sentAt || m.createdAt)}</small></td><td>${badge(m.status)}${m.error ? `<small>${esc(m.error)}</small>` : ''}</td><td>${boot.isAdmin && m.status === 'UNCERTAIN' ? `<button class="button secondary compact" data-resolve="${esc(m.key)}" data-resolution="CONFIRM_SENT">Confirmar enviado</button> <button class="button secondary compact" data-resolve="${esc(m.key)}" data-resolution="REQUEUE">Reintentar</button>` : '—'}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No hay correos registrados.</td></tr>';
+}
+async function loadHealth() {
+  const h = await api('runSystemHealthCheck');
+  $('healthContent').innerHTML = `<p class="health-state ${h.ready ? 'ok' : 'warn'}">${h.ready ? '✓ Configuración verificada' : 'Configuración pendiente'}</p><ul class="health-list">${h.issues.map(i => `<li>${esc(i)}</li>`).join('')}</ul><p class="muted">Cuota diaria de correo restante: ${esc(h.quota)} · Disparadores: ${esc(h.triggers.length)}</p>${h.forms.map(f => `<p>${link(f.editUrl, f.type === 'GOOGLE_FORM_ID' ? 'Editar formulario de solicitud' : 'Editar formulario de corrección')} · ${f.accepting ? 'Abierto' : 'Cerrado'}</p>`).join('')}`;
+}
+async function loadAudit() {
+  const result = await api('listAudit');
+  $('auditContent').innerHTML = '<h2>Errores registrados</h2>' + (result.errors.map(e => `<div class="error-box"><strong>${esc(e.context)}</strong> · ${date(e.timestamp)}<br>${esc(e.message)}</div>`).join('') || '<p class="muted">Sin errores registrados.</p>') +
+    '<h2>Últimas acciones</h2><div class="timeline">' + result.audit.map(e => `<div class="timeline-item"><strong>${esc(e.action)}</strong> · ${esc(e.applicationId)}<div>${esc(e.detail)}</div><small>${date(e.timestamp)} · ${esc(e.actor)}</small></div>`).join('') + '</div>';
+}
+
+/* ---------- Start-up and events ---------- */
+async function init() {
+  const [bootstrap] = await Promise.all([api('getBootstrap'), loadApplications().catch(handle)]);
+  boot = bootstrap;
+  $('actor').textContent = boot.actor; $('avatar').textContent = initials(String(boot.actor).replace(/^gestión:/, ''));
+  $('period').textContent = boot.period; $('headingPeriod').textContent = boot.period; $('ownerEmail').textContent = boot.owner;
+  $('sheetLink').href = safeUrl(boot.spreadsheet);
+  $('emailEnabled').checked = boot.emailEnabled; $('receiptEnabled').checked = !!boot.receiptEnabled; $('domains').value = boot.domains || '';
+  $('pausedBanner').classList.toggle('hidden', boot.emailEnabled); $('demoBanner').classList.toggle('hidden', !window.UMA_DEMO);
+  document.querySelectorAll('.admin-only').forEach(e => e.classList.toggle('hidden', !boot.isAdmin));
+  choices('statusFilter', boot.states); choices('discountFilter', boot.discounts); choices('schoolFilter', boot.schools);
+  $('pageDescription').textContent = VIEWS.overview.description;
+  if (window.UMA_DEMO) $('logoutManagement').classList.add('hidden');
+  if (window.UMA_REMOTE) window.UMA_REMOTE.connected();
+  const linked = new URLSearchParams(location.hash.slice(1)), applicationId = linked.get('solicitud');
+  if (applicationId) { try { await openDetail(applicationId); if (linked.get('documento')) await previewDocument(linked.get('documento')); } catch (error) { handle(error); } }
+}
+function closeMenu() {
+  const open = document.querySelector('.sidebar').classList.contains('open');
+  document.querySelector('.sidebar').classList.remove('open'); $('mobileMenu').setAttribute('aria-expanded', 'false');
+  if (open && matchMedia('(max-width:850px)').matches) $('mobileMenu').focus();
+}
+const reload = () => { page = 1; loadApplications().catch(handle); };
+$('navigation').onclick = e => { const button = e.target.closest('[data-view]'); if (button) navigate(button.dataset.view).catch(handle); };
+$('mobileMenu').onclick = () => { const open = document.querySelector('.sidebar').classList.toggle('open'); $('mobileMenu').setAttribute('aria-expanded', String(open)); };
+$('menuBackdrop').onclick = closeMenu;
+$('refresh').onclick = () => navigate(view).catch(handle);
+$('filters').onsubmit = e => { e.preventDefault(); reload(); };
+$('search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(reload, 300); };
+['statusFilter','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).onchange = reload);
+$('advancedToggle').onclick = () => { const hidden = $('advancedFilters').classList.toggle('hidden'); $('advancedToggle').setAttribute('aria-expanded', String(!hidden)); };
+$('clearFilters').onclick = () => { ['search','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).value = ''); if (!$('statusFilter').disabled) $('statusFilter').value = ''; reload(); };
+$('queueChips').onclick = e => { const chip = e.target.closest('[data-queue]'); if (!chip) return; queue = chip.dataset.queue; document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c === chip)); reload(); };
+$('prevPage').onclick = () => { page--; loadApplications().catch(handle); };
+$('nextPage').onclick = () => { page++; loadApplications().catch(handle); };
+$('closeDetail').onclick = () => $('detailDialog').close();
+$('prevDetail').onclick = () => step(-1).catch(handle);
+$('nextDetail').onclick = () => step(1).catch(handle);
+$('cancelDecision').onclick = () => $('confirmDialog').close();
+$('confirmDecision').onclick = confirmDecision;
+$('detailDialog').addEventListener('close', () => { const frame = $('documentPreview'); if (frame) frame.src = 'about:blank'; releasePreview(); detail = null; });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeMenu();
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+  if ($('detailDialog').open && !$('confirmDialog').open && !typing && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) step(e.key === 'ArrowRight' ? 1 : -1).catch(handle);
+  if (e.key === 'Enter' && e.target.matches?.('tr[data-open]')) openDetail(e.target.dataset.open).catch(handle);
 });
-$('export').onclick=async()=>{const button=$('export');button.disabled=true;try{const result=await api('exportExcel',filters());downloadFile(result);toast(`Excel descargado: ${result.count} solicitudes.`);}catch(e){handle(e);}finally{button.disabled=false;}};
-$('settingsForm').onsubmit=async e=>{e.preventDefault();try{await api('updateSettings',{emailEnabled:$('emailEnabled').checked,domains:$('domains').value});boot.emailEnabled=$('emailEnabled').checked;$('pausedBanner').classList.toggle('hidden',boot.emailEnabled);toast('Configuración guardada.');}catch(error){handle(error);}};
-$('healthRefresh').onclick=()=>loadHealth().catch(handle);
-if(window.UMA_REMOTE)window.UMA_REMOTE.start(init);else init().catch(handle);
+document.addEventListener('click', async e => {
+  const open = e.target.closest('[data-open]'), preview = e.target.closest('[data-preview]'), download = e.target.closest('[data-download]'),
+    stage = e.target.closest('[data-stage]'), resolve = e.target.closest('[data-resolve]'), goto = e.target.closest('[data-goto]');
+  try {
+    if (goto) return await navigate(goto.dataset.goto);
+    if (e.target.closest('[data-attention]')) { await navigate('pending'); queue = 'attention'; document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c.dataset.queue === 'attention')); return reload(); }
+    if (open && !$('detailDialog').contains(open)) return await openDetail(open.dataset.open);
+    if (preview) await previewDocument(preview.dataset.preview);
+    if (download) downloadFile(await documentFile(download.dataset.download));
+    if (stage) { await api('setReviewStatus', detail.application.id, detail.application.version, stage.dataset.stage); await openDetail(detail.application.id); await loadApplications(); toast('Etapa actualizada.'); }
+    if (e.target.closest('[data-ack]')) { await api('acknowledgeIssues', detail.application.id, detail.application.version); await openDetail(detail.application.id); await loadApplications(); toast('Alertas marcadas como revisadas.'); }
+    if (e.target.id === 'renewCorrection') { await api('renewCorrection', detail.application.id); await openDetail(detail.application.id); toast('Nuevo enlace generado; el correo quedó en cola.'); }
+    if (resolve) {
+      const note = prompt(resolve.dataset.resolution === 'REQUEUE' ? 'Tras comprobar que el mensaje no fue enviado, describa la verificación. Reintentar puede duplicarlo si ya fue aceptado.' : 'Describa cómo comprobó que el mensaje fue enviado.');
+      if (note) { await api('resolveEmail', resolve.dataset.resolve, resolve.dataset.resolution, note); await loadEmails(); }
+    }
+  } catch (error) { handle(error); }
+});
+$('export').onclick = async () => {
+  const button = $('export'); button.disabled = true;
+  try { const result = await api('exportExcel', filters()); downloadFile(result); toast(`Excel descargado: ${result.count} solicitudes.`); }
+  catch (e) { handle(e); } finally { button.disabled = false; }
+};
+$('settingsForm').onsubmit = async e => {
+  e.preventDefault();
+  try {
+    await api('updateSettings', {emailEnabled:$('emailEnabled').checked, receiptEnabled:$('receiptEnabled').checked, domains:$('domains').value});
+    boot.emailEnabled = $('emailEnabled').checked; $('pausedBanner').classList.toggle('hidden', boot.emailEnabled); toast('Configuración guardada.');
+  } catch (error) { handle(error); }
+};
+$('healthRefresh').onclick = () => loadHealth().catch(handle);
+if (window.UMA_REMOTE) window.UMA_REMOTE.start(init); else init().catch(handle);
 })();
 </script>

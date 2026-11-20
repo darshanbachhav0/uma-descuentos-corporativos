@@ -5,6 +5,10 @@ var UMA = Object.freeze({
   schools: ['Administración y Marketing','Administración y Negocios Internacionales','Contabilidad y Finanzas','Derecho','Enfermería','Farmacia y Bioquímica','Ingeniería de Inteligencia Artificial','Medicina Humana','Nutrición y Dietética','Psicología','Tecnología Médica en Laboratorio Clínico y Anatomía Patológica','Tecnología Médica en Terapia Física y Rehabilitación','Tecnología Médica en Optometría','Ingeniería Industrial'],
   categories: ['Ficha socioeconómica incompleta','Falta firma del estudiante','Documento ilegible','Falta documento sustentatorio','Datos incorrectos','Documento no corresponde','Información incompleta','Otro'],
   states: ['RECIBIDA','EN_REVISION','OBSERVADA','CORRECCION_RECIBIDA','VALIDADA_PENDIENTE_SIGU','APLICADA_SIGU'],
+  // An application stays pending (observed included) until the discount is applied in SIGU.
+  pendingStates: ['RECIBIDA','EN_REVISION','OBSERVADA','CORRECCION_RECIBIDA','VALIDADA_PENDIENTE_SIGU'],
+  // Treasury must act on these; OBSERVADA waits for the student.
+  reviewStates: ['RECIBIDA','EN_REVISION','CORRECCION_RECIBIDA','VALIDADA_PENDIENTE_SIGU'],
   labels: {
     institutionalEmail:'Correo electrónico institucional',personalEmail:'Correo electrónico personal',
     identityType:'Tipo de documento',identityNumber:'Número de documento',name:'Apellidos y nombres',
@@ -14,7 +18,7 @@ var UMA = Object.freeze({
     applicationId:'Código de solicitud',token:'Código seguro de subsanación',clarification:'Aclaración del estudiante'
   },
   schema: {
-    Solicitudes: ['id','createdAt','updatedAt','period','institutionalEmail','personalEmail','recipient','identityType','identityNumber','name','school','discount','otherDiscount','folderId','folderUrl','socioeconomicUrls','supportingUrls','initialResponseId','revision','version','status','reviewer','reviewedAt','siguConfirmedAt','siguReference','category','observation','instructions','correctionExpiresAt','correctionRevision','lastCorrectionAt','emailStatus','processingError','lastDecisionKey'],
+    Solicitudes: ['id','createdAt','updatedAt','period','institutionalEmail','personalEmail','recipient','identityType','identityNumber','name','school','discount','otherDiscount','folderId','folderUrl','socioeconomicUrls','supportingUrls','initialResponseId','revision','version','status','reviewer','reviewedAt','siguConfirmedAt','siguReference','category','observation','instructions','correctionExpiresAt','correctionRevision','lastCorrectionAt','emailStatus','processingError','lastDecisionKey','issues','submissions','lastSubmissionAt'],
     Documentos: ['key','applicationId','revision','kind','sourceId','fileId','name','mimeType','url','createdAt'],
     Eventos: ['key','formId','responseId','applicationId','revision','status','timestamp','error','attempts','attemptedAt','retryAt'],
     Observaciones: ['key','applicationId','revision','category','observation','instructions','reviewer','timestamp'],
@@ -33,12 +37,14 @@ function config_() {
   var p = properties_().getProperties();
   return Object.assign({ACADEMIC_PERIOD: UMA.period, AUTHORIZED_REVIEWERS: UMA.owner,
     INSTITUTIONAL_EMAIL_DOMAINS:'', EMAIL_NOTIFICATION_ENABLED:'false', CORRECTION_DAYS:'14',
-    MAX_FILE_BYTES:String(10*1024*1024), MAX_FILES:'10'}, p);
+    MAX_FILE_BYTES:String(10*1024*1024), MAX_FILES:'10', RECEIPT_EMAIL_ENABLED:'false'}, p);
 }
 function now_() { return new Date().toISOString(); }
 function assert_(condition, message) { if (!condition) throw new Error(message); }
 function locked_(callback) {
   var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  // Data read before the lock may be stale; locked work starts from a fresh read.
+  if (typeof forgetTables_ === 'function') forgetTables_();
   try { return callback(); } finally { lock.releaseLock(); }
 }
 function effectiveOwner_() {
