@@ -12,8 +12,6 @@ const labels = {
 const emailTypes = {APPROVED:'Aprobación', OBSERVED:'Observación', RECEIVED:'Acuse de recepción'};
 const VIEWS = {
   pending:      {filter:{pendingOnly:true}},
-  review:       {filter:{queue:'review'}},
-  observed:     {filter:{status:'OBSERVADA'}},
   approved:     {filter:{status:'APLICADA_SIGU'}},
   applications: {filter:{}},
   emails:       {}
@@ -78,7 +76,7 @@ function choices(id, values) {
   values.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = labels[v] || v; $(id).append(o); });
 }
 function renderCounts(s) {
-  $('navPending').textContent = s.pending; $('navReview').textContent = s.toReview ?? 0; $('navObserved').textContent = s.observed;
+  $('navPending').textContent = s.pending;
   $('navApplied').textContent = s.applied; $('navTotal').textContent = s.total;
   const notes = [];
   if (s.attention) notes.push(`${s.attention} solicitud${s.attention === 1 ? '' : 'es'} con alertas.<button class="link" data-attention>Ver</button>`);
@@ -95,7 +93,7 @@ function applicationRow(a) {
     <td><span class="chip">${esc(a.discount || '—')}</span></td>
     <td class="num">${esc(a.submissions || 1)}</td>
     <td data-label="Último envío">${date(a.lastSubmissionAt || a.createdAt)}${Number(a.submissions) > 1 ? `<span class="m-only"> · ${esc(a.submissions)} envíos</span>` : ''}</td>
-    <td>${status(a.status)}${alerts ? `<span class="flag">${alerts} alerta${alerts === 1 ? '' : 's'}</span>` : ''}${a.processingError ? '<span class="flag bad">Error en documentos</span>' : ''}</td></tr>`;
+    <td>${status(a.status)}${a.status === 'OBSERVADA' ? '<span class="flag waiting">Esperando al estudiante</span>' : ''}${alerts ? `<span class="flag">${alerts} alerta${alerts === 1 ? '' : 's'}</span>` : ''}${a.processingError ? '<span class="flag bad">Error en documentos</span>' : ''}</td></tr>`;
 }
 async function loadApplications() {
   const request = ++listRequest;

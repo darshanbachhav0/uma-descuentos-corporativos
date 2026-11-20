@@ -10,8 +10,6 @@
   </header>
   <nav id="navigation" class="tabs" aria-label="Solicitudes">
     <button class="tab active" data-view="pending" aria-current="page">Pendientes <span class="count" id="navPending">0</span></button>
-    <button class="tab" data-view="review">Por revisar <span class="count" id="navReview">0</span></button>
-    <button class="tab" data-view="observed">Observadas <span class="count" id="navObserved">0</span></button>
     <button class="tab" data-view="approved">Aplicadas en SIGU <span class="count" id="navApplied">0</span></button>
     <button class="tab" data-view="applications">Todas <span class="count" id="navTotal">0</span></button>
     <button class="tab" data-view="emails">Correos</button>
@@ -22,7 +20,7 @@
     <p id="pausedBanner" class="banner hidden">El envío de correos está pausado. Las decisiones se guardan y los correos quedan en cola.</p>
     <p id="attentionBar" class="banner hidden" role="status"></p>
     <section id="applicationsPanel" class="card">
-      <div id="queueChips" class="chips hidden" role="group" aria-label="Filtrar pendientes"><button type="button" class="chip active" data-queue="">Todas</button><button type="button" class="chip" data-queue="review">Por revisar</button><button type="button" class="chip" data-queue="waiting">Esperando al estudiante</button><button type="button" class="chip" data-queue="attention">Con alertas</button></div>
+      <div id="queueChips" class="chips hidden" role="group" aria-label="Filtrar pendientes"><button type="button" class="chip active" data-queue="">Todas las pendientes</button><button type="button" class="chip" data-queue="review">Por revisar</button><button type="button" class="chip" data-queue="waiting">Esperando al estudiante</button><button type="button" class="chip" data-queue="attention">Con alertas</button></div>
       <form id="filters" class="toolbar">
         <label class="search"><span class="ui-icon" data-icon="search"></span><input id="search" type="search" placeholder="Buscar por nombre, DNI, correo o código" autocomplete="off" aria-label="Buscar"></label>
         <select id="statusFilter" aria-label="Estado"><option value="">Todos los estados</option></select>
