@@ -2,7 +2,7 @@
 
 ## 1. Preparación local
 
-Abra Microsoft Edge con **darshanbachhavapp@gmail.com**. Verifique la cuenta en Google Apps Script; el perfil de Microsoft Edge no determina qué cuenta de Google está activa.
+Abra Microsoft Edge con **contactotesoreriauma@gmail.com**. Verifique la cuenta en Google Apps Script; el perfil de Microsoft Edge no determina qué cuenta de Google está activa.
 
 ```powershell
 npm run build
@@ -23,7 +23,7 @@ Alternativa CLI opcional:
 ```powershell
 npm install --global @google/clasp
 clasp login
-# Seleccione darshanbachhavapp@gmail.com en Edge y autorice los permisos.
+# Seleccione contactotesoreriauma@gmail.com en Edge y autorice los permisos.
 # Habilite Google Apps Script API en https://script.google.com/home/usersettings si clasp lo solicita.
 Copy-Item .clasp.json.example .clasp.json
 # Ponga el ID real del proyecto en .clasp.json; rootDir debe ser dist.
@@ -60,10 +60,10 @@ Ejecute `finalizeSetup` como propietario. Actualiza los IDs de las preguntas y e
 
 | Función | Disparador | Propietario |
 | --- | --- | --- |
-| `onApplicationSubmit` | Al enviar formulario inicial | darshanbachhavapp@gmail.com |
-| `onCorrectionSubmit` | Al enviar formulario de subsanación | darshanbachhavapp@gmail.com |
-| `processEmailQueue` | Cada minuto aproximadamente | darshanbachhavapp@gmail.com |
-| `reconcileSubmissions` | Cada 10 minutos aproximadamente | darshanbachhavapp@gmail.com |
+| `onApplicationSubmit` | Al enviar formulario inicial | contactotesoreriauma@gmail.com |
+| `onCorrectionSubmit` | Al enviar formulario de subsanación | contactotesoreriauma@gmail.com |
+| `processEmailQueue` | Cada minuto aproximadamente | contactotesoreriauma@gmail.com |
+| `reconcileSubmissions` | Cada 10 minutos aproximadamente | contactotesoreriauma@gmail.com |
 
 No use disparadores de edición de celdas para enviar correos. No instale duplicados desde otras cuentas. Los intervalos de Google no son tiempos de entrega garantizados.
 
@@ -78,7 +78,7 @@ En este despliegue el acceso ya está configurado. Para una instalación nueva, 
 ## 7. Desplegar el servicio
 
 1. **Deploy → New deployment → Web app**.
-2. **Execute as: Me**, desde **darshanbachhavapp@gmail.com** (`USER_DEPLOYING`).
+2. **Execute as: Me**, desde **contactotesoreriauma@gmail.com** (`USER_DEPLOYING`).
 3. **Who has access: Anyone** (`ANYONE_ANONYMOUS`). Esto permite abrir el servicio sin sesión Google; cada operación de gestión sigue exigiendo la sesión propia del panel.
 4. Configure en Render la URL `/exec` y en `FRONTEND_ORIGINS` el origen HTTPS exacto de Render.
 5. Abra Render: deben aparecer solamente Usuario, Contraseña e Ingresar. No deben aparecer botones de Google, registro ni recuperación.

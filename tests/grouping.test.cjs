@@ -86,7 +86,7 @@ test('a decision for a case without a valid student email is rejected before any
 
 test('a journal stuck by a missing recipient is closed and no longer blocks the case',()=>{
   const s=createSystem(),a=submit(s,'stuck',{institutionalEmail:'bad',personalEmail:''});
-  s.db.Decisiones.push({key:'DECISION:old-stuck',applicationId:a.id,reviewer:'darshanbachhavapp@gmail.com',payload:JSON.stringify({decision:'APPROVED',version:a.version,siguConfirmed:true}),status:'PENDING',timestamp:new Date().toISOString()});
+  s.db.Decisiones.push({key:'DECISION:old-stuck',applicationId:a.id,reviewer:'contactotesoreriauma@gmail.com',payload:JSON.stringify({decision:'APPROVED',version:a.version,siguConfirmed:true}),status:'PENDING',timestamp:new Date().toISOString()});
   s.ctx.processEmailQueue();
   assert.equal(s.db.Decisiones[0].status,'CANCELLED');
   const fixed=submit(s,'stuck-fixed',{institutionalEmail:'bad',personalEmail:'student.ok@example.com'});

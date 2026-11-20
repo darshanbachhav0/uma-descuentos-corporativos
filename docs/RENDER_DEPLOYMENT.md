@@ -35,7 +35,7 @@ Cuando se crea un servicio directamente por CLI, el Blueprint queda como configu
 
 Ejecute `node scripts/verify-deployment.mjs` para verificar las páginas públicas, cabeceras, assets, hash del PDF original y respuesta 404 de archivos privados. Esa comprobación es independiente de las pruebas autenticadas de Google.
 
-La cuenta de Render y la de envío previstas son darshanbachhavapp@gmail.com. La autorización de Render no concede acceso a Google: cada proveedor tiene su consentimiento independiente.
+La cuenta de envío (propietaria de Google) es contactotesoreriauma@gmail.com; la cuenta de Render no cambia. La autorización de Render no concede acceso a Google: cada proveedor tiene su consentimiento independiente.
 
 El servicio de Apps Script se ejecuta como propietario (`USER_DEPLOYING`) con acceso web `ANYONE_ANONYMOUS`. El sitio presenta exclusivamente usuario/contraseña, y la API rechaza toda operación de datos sin su sesión de gestión. Las credenciales de Google permanecen en Google. Si cambia una cabecera revisada de render.yaml, aplique `python scripts/configure-render.py --update-existing`; las demás reglas existentes se conservan.
 

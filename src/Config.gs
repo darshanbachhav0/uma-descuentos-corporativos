@@ -1,5 +1,5 @@
 var UMA = Object.freeze({
-  owner: 'darshanbachhavapp@gmail.com',
+  owner: 'contactotesoreriauma@gmail.com',
   period: '2027-I',
   discounts: ['Familiar', 'PNP', 'San Hilarión', 'FED-CUT', 'Liderman', 'Emphost', 'El Tumi', 'Boticas Perú', 'Otro'],
   schools: ['Administración y Marketing','Administración y Negocios Internacionales','Contabilidad y Finanzas','Derecho','Enfermería','Farmacia y Bioquímica','Ingeniería de Inteligencia Artificial','Medicina Humana','Nutrición y Dietética','Psicología','Tecnología Médica en Laboratorio Clínico y Anatomía Patológica','Tecnología Médica en Terapia Física y Rehabilitación','Tecnología Médica en Optometría','Ingeniería Industrial'],

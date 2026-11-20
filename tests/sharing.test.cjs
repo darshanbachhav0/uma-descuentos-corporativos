@@ -9,11 +9,11 @@ function withSheet(s,sheet){
 const period=s=>[...s.folders.values()].find(f=>f.parent==='root'&&f.name==='2027-I');
 
 test('everyone the spreadsheet is shared with can view the documents, including later ones',()=>{
-  const s=createSystem(),sheet=withSheet(s,{editors:['darshanbachhavapp@gmail.com','editor@uma.edu.pe'],viewers:['Viewer@Gmail.com'],link:'PRIVATE'});
+  const s=createSystem(),sheet=withSheet(s,{editors:['contactotesoreriauma@gmail.com','editor@uma.edu.pe'],viewers:['Viewer@Gmail.com'],link:'PRIVATE'});
   s.ctx.ingest_(s.response('first',s.valid()),false);
   const report=s.ctx.shareDocumentsWithSheetUsers();
   assert.deepEqual([...period(s).viewers].sort(),['editor@uma.edu.pe','viewer@gmail.com']);
-  assert.ok(!period(s).viewers.has('darshanbachhavapp@gmail.com'),'the owner is not added to their own folder');
+  assert.ok(!period(s).viewers.has('contactotesoreriauma@gmail.com'),'the owner is not added to their own folder');
   assert.equal(report.link,'');
   // Documents stay without link access: access comes from the period folder.
   assert.ok(s.db.Documentos.length>0);

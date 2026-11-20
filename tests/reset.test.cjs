@@ -30,7 +30,7 @@ test('preview counts what a reset would remove and changes nothing',()=>{
 test('reset requires the exact confirmation phrase and the owner account',()=>{
   const s=createSystem();s.ctx.ingest_(s.response('r1',s.valid()),false);withResetFakes(s);
   assert.throws(()=>s.ctx.resetAllData(),/BORRAR TODO/);assert.throws(()=>s.ctx.resetAllData('borrar todo'),/BORRAR TODO/);
-  s.setIdentity('reviewer@example.edu','darshanbachhavapp@gmail.com');assert.throws(()=>s.ctx.resetAllData('BORRAR TODO'),/propietaria/);
+  s.setIdentity('reviewer@example.edu','contactotesoreriauma@gmail.com');assert.throws(()=>s.ctx.resetAllData('BORRAR TODO'),/propietaria/);
   assert.equal(s.db.Solicitudes.length,1);
 });
 
