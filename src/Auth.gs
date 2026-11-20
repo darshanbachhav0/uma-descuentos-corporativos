@@ -16,16 +16,21 @@ function managementAuthParameters_(){
 }
 function loginManagement_(input){
   managementAuthParameters_();assert_(input&&typeof input.username==='string'&&typeof input.proof==='string'&&input.username.length<=40&&/^[a-f0-9]{64}$/.test(input.proof),'Usuario o contraseña incorrectos');
-  return locked_(function(){
-    // Failures are counted per username so wrong guesses for another name cannot lock Treasury out.
+  // No script lock here: the email and form jobs hold it for long periods, and a login only touches
+  // the cache. Failures are counted per username so guesses for another name cannot lock Treasury out;
+  // without the lock, simultaneous wrong attempts can each see the same count, which only delays the
+  // 15-minute block by a few tries.
+  return (function(){
     var cache=CacheService.getScriptCache(),key=loginFailureKey_(input.username),failed=Number(cache.get(key)||0),c=config_();
     assert_(failed<10,'Demasiados intentos. Espere 15 minutos y vuelva a intentar.');
     var valid=equalSecret_(digest_(input.proof),c.MANAGEMENT_VERIFIER),correctUser=equalSecret_(input.username,c.MANAGEMENT_USERNAME);
     if(!valid||!correctUser){cache.put(key,String(failed+1),900);throw new Error('Usuario o contraseña incorrectos');}
     cache.remove(key);var token=Utilities.getUuid().replace(/-/g,'')+Utilities.getUuid().replace(/-/g,''),expiresAt=Date.now()+21600000;
     cache.put('UMA_SESSION_'+digest_(token),JSON.stringify({username:c.MANAGEMENT_USERNAME,admin:true,expiresAt:expiresAt,version:c.MANAGEMENT_CREDENTIAL_VERSION}),21600);
-    audit_('gestión:'+c.MANAGEMENT_USERNAME,'AUTH_LOGIN','','Ingreso al panel');return {token:token,expiresAt:expiresAt};
-  });
+    // The audit row is best effort: a slow or busy spreadsheet must not block access.
+    try{audit_('gestión:'+c.MANAGEMENT_USERNAME,'AUTH_LOGIN','','Ingreso al panel');}catch(e){console.error('AUTH_LOGIN audit: '+e.message);}
+    return {token:token,expiresAt:expiresAt};
+  })();
 }
 function loginFailureKey_(username){return 'UMA_LOGIN_FAILURES_'+digest_(String(username||'').trim().toLowerCase()).slice(0,32);}
 function managementSession_(token){
