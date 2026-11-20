@@ -36,6 +36,7 @@ function recoverDecisions_(){rows_('Decisiones').filter(function(j){return j.sta
 function setReviewStatus(id,version,status) {
   var actor=reviewer_();assert_(['EN_REVISION','VALIDADA_PENDIENTE_SIGU'].indexOf(status)>=0,'Estado inválido');
   return locked_(function(){var a=application_(id);assert_(Number(a.version)===Number(version),'Actualice el expediente');assert_(['RECIBIDA','EN_REVISION','CORRECCION_RECIBIDA','VALIDADA_PENDIENTE_SIGU'].indexOf(a.status)>=0,'Transición no permitida');
+    assert_(!a.processingError&&!rows_('Eventos').some(function(event){return event.applicationId===id&&event.status!=='DONE';}),'Espere el procesamiento de los documentos');
     assert_(!rows_('Decisiones').some(function(j){return j.applicationId===id&&j.status!=='DONE';}),'Decisión pendiente de recuperación');
     transition_(a,status,actor);a.reviewer=actor;a.version=Number(a.version)+1;saveApplication_(a);audit_(actor,'STATUS_CHANGED',id,status);return a;});
 }

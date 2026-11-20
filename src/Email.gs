@@ -20,7 +20,7 @@ function processEmailQueue(e) {
   owner_(e,'processEmailQueue');return locked_(function(){
     recoverDecisions_();var cfg=config_();
     var logs=rows_('Correos');
-    logs.filter(function(m){return m.status==='SENDING';}).forEach(function(m){m.status='UNCERTAIN';m.error='Ejecución interrumpida. Verifique el envío antes de resolver.';put_('Correos',m);});
+    logs.filter(function(m){return m.status==='SENDING';}).forEach(function(m){m.status='UNCERTAIN';m.error='Ejecución interrumpida. Verifique el envío antes de resolver.';put_('Correos',m);var a=application_(m.applicationId);if(a.lastDecisionKey===m.decisionKey){a.emailStatus='UNCERTAIN';saveApplication_(a);}});
     if(cfg.EMAIL_NOTIFICATION_ENABLED!=='true')return {paused:true};
     var sent=0,quota=MailApp.getRemainingDailyQuota();
     logs.filter(function(m){return m.status==='PENDING';}).slice(0,15).forEach(function(m){

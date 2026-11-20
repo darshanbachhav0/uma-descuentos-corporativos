@@ -16,7 +16,7 @@ var UMA = Object.freeze({
   schema: {
     Solicitudes: ['id','createdAt','updatedAt','period','institutionalEmail','personalEmail','recipient','identityType','identityNumber','name','school','discount','otherDiscount','folderId','folderUrl','socioeconomicUrls','supportingUrls','initialResponseId','revision','version','status','reviewer','reviewedAt','siguConfirmedAt','siguReference','category','observation','instructions','correctionExpiresAt','correctionRevision','lastCorrectionAt','emailStatus','processingError','lastDecisionKey'],
     Documentos: ['key','applicationId','revision','kind','sourceId','fileId','name','mimeType','url','createdAt'],
-    Eventos: ['key','formId','responseId','applicationId','revision','status','timestamp','error'],
+    Eventos: ['key','formId','responseId','applicationId','revision','status','timestamp','error','attempts','attemptedAt','retryAt'],
     Observaciones: ['key','applicationId','revision','category','observation','instructions','reviewer','timestamp'],
     Historial_Estados: ['key','applicationId','fromStatus','toStatus','reviewer','timestamp','detail'],
     Decisiones: ['key','applicationId','reviewer','payload','status','timestamp','error'],

@@ -17,7 +17,7 @@ config.applicationFormUrl=process.env.UMA_APPLICATION_FORM_URL||config.applicati
 if(config.appsScriptUrl&&!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(config.appsScriptUrl))throw new Error('UMA_APPS_SCRIPT_URL must be a Google Apps Script /exec deployment URL');
 const unwrap=(text,tag)=>text.replace(new RegExp('^<'+tag+'>\\s*'),'').replace(new RegExp('\\s*</'+tag+'>\\s*$'),'');
 const gate=fs.readFileSync('web/Gate.html','utf8');
-const staticHtml=html.Dashboard.replace("<?!= include_('Logo'); ?>",'/uma-logo.jpg').replace("<?!= include_('Styles'); ?>",'<link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/site.css">').replace('<body>','<body>\n'+gate).replace("<?!= include_('Client'); ?>",'<script src="/transport.js"></script><script src="/client.js"></script>');
+const staticHtml=html.Dashboard.replace("<?!= include_('Logo'); ?>",'/uma-logo.jpg').replace("<?!= include_('Styles'); ?>",'<link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/site.css">').replace('<body>','<body>\n'+gate).replace('<div class="app">','<div class="app" id="workspaceApp" inert>').replace("<?!= include_('Client'); ?>",'<script src="/transport.js"></script><script src="/client.js"></script>');
 fs.writeFileSync(path.join(publish,'index.html'),staticHtml);
 fs.writeFileSync(path.join(publish,'styles.css'),unwrap(html.Styles,'style'));
 fs.writeFileSync(path.join(publish,'client.js'),unwrap(html.Client,'script'));

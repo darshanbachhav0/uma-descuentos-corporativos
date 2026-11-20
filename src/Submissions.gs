@@ -15,6 +15,7 @@ function ingest_(response,correction) {
     var cfg=config_(),formId=cfg[correction?'CORRECTION_FORM_ID':'GOOGLE_FORM_ID'],key=formId+':'+response.getId();
     var event=find_('Eventos','key',key);if(event&&event.status==='DONE')return event.applicationId;
     event=event||{key:key,formId:formId,responseId:response.getId(),timestamp:now_(),status:'PROCESSING'};
+    event.attempts=Number(event.attempts||0)+1;event.attemptedAt=now_();
     try{
       var data=readResponse_(response,correction),a;
       if(correction){
@@ -46,9 +47,9 @@ function ingest_(response,correction) {
         a.revision=Number(event.revision);if(!alreadyCommitted)a.version=Number(a.version)+1;a.lastCorrectionAt=a.lastCorrectionAt||now_();a.correctionExpiresAt='';
         transition_(a,'CORRECCION_RECIBIDA',a.recipient,cleanText_(data.values.clarification),key+':status');
       }else if(!find_('Historial_Estados','key',key+':status'))transition_(a,'RECIBIDA',UMA.owner,'Recepción inicial',key+':status');
-      a.processingError='';saveApplication_(a);event.status='DONE';event.error='';put_('Eventos',event);audit_(UMA.owner,correction?'CORRECTION_RECEIVED':'APPLICATION_RECEIVED',a.id,'Revisión '+a.revision);return a.id;
+      a.processingError='';saveApplication_(a);event.status='DONE';event.error='';event.retryAt='';put_('Eventos',event);audit_(UMA.owner,correction?'CORRECTION_RECEIVED':'APPLICATION_RECEIVED',a.id,'Revisión '+a.revision);return a.id;
     }catch(e){
-      event.status='ERROR';event.error=String(e.message);put_('Eventos',event);
+      event.status='ERROR';event.error=String(e.message);event.retryAt=new Date(Date.now()+Math.min(86400000,600000*Math.pow(2,Math.min(8,event.attempts-1)))).toISOString();put_('Eventos',event);
       if(event.applicationId){try{var failed=application_(event.applicationId);failed.processingError=e.message;saveApplication_(failed);}catch(_){}}
       error_('FORM_SUBMIT',key,e);throw e;
     }
@@ -80,11 +81,19 @@ function reconcileSubmissions(e) {
     var since=Number(p.getProperty(cursorKey)||0),cutoff=Date.now();
     var responses=FormApp.openById(cfg[key]).getResponses(new Date(Math.max(0,since-60000)));
     // Bound work per execution; only advance after every response in this interval was considered.
-    var processed=0;for(var i=0;i<responses.length;i++){
+    var known=rows_('Eventos'),processed=0;for(var i=0;i<responses.length;i++){
+      var prior=known.find(function(event){return event.formId===cfg[key]&&event.responseId===responses[i].getId();});
+      if(prior&&(prior.status==='DONE'||prior.status==='ERROR'))continue;
       if(processed>=40)return;
       try{ingest_(responses[i],correction);}catch(e){/* persisted error; retried separately below */}processed++;
     }
     p.setProperty(cursorKey,String(cutoff));
-    rows_('Eventos').filter(function(e){return e.formId===cfg[key]&&e.status!=='DONE';}).slice(0,5).forEach(function(e){try{ingest_(FormApp.openById(cfg[key]).getResponse(e.responseId),correction);}catch(_){}});
+    rows_('Eventos').filter(function(e){return e.formId===cfg[key]&&e.status!=='DONE'&&(!e.retryAt||Date.parse(e.retryAt)<=Date.now());}).sort(function(a,b){return String(a.attemptedAt||'').localeCompare(String(b.attemptedAt||''));}).slice(0,5).forEach(function(e){try{ingest_(FormApp.openById(cfg[key]).getResponse(e.responseId),correction);}catch(_){}});
   });
+}
+function retryFailedEvent(key){
+  owner_();var event=find_('Eventos','key',key);assert_(event&&event.status!=='DONE','No hay un evento pendiente');
+  assert_([config_().GOOGLE_FORM_ID,config_().CORRECTION_FORM_ID].indexOf(event.formId)>=0,'Formulario no autorizado');
+  audit_(UMA.owner,'EVENT_RETRY',event.applicationId,event.key);
+  return ingest_(FormApp.openById(event.formId).getResponse(event.responseId),event.formId===config_().CORRECTION_FORM_ID);
 }

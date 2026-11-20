@@ -41,7 +41,7 @@
       if(!methods.has(method))throw new Error('Operación no permitida');await connect();
       return new Promise((resolve,reject)=>{const id=crypto.randomUUID(),timeout=setTimeout(()=>{state.pending.delete(id);reject(new Error('Google no respondió a tiempo. Actualice el expediente antes de repetir una decisión.'));},60000);state.pending.set(id,{resolve,reject,timeout});state.source.postMessage({umaBridge:1,channel:state.channel,type:'request',id,method,args},state.origin);});
     },
-    connected(){document.getElementById('connectionGate').classList.add('hidden');},
+    connected(){document.getElementById('connectionGate').classList.add('hidden');document.getElementById('workspaceApp').removeAttribute('inert');},
     trustedOrigin,validBackend
   };
   document.getElementById('retryGoogle').onclick=()=>location.reload();

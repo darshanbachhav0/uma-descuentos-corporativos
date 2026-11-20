@@ -20,3 +20,5 @@
 | Panel muestra una versión anterior | Guarde/suba el código y actualice la versión del despliegue de Google y la de Render |
 
 Use Auditoría y Errores para comprobar la etapa que falló. No publique esos registros ni datos de estudiantes al pedir soporte.
+
+Los errores de procesamiento se reintentan con espera creciente, hasta un intervalo de un día. Para un reintento inmediato después de corregir la causa, el propietario puede ejecutar `retryFailedEvent(claveDelEvento)` desde el proyecto autorizado. La clave figura en Eventos; la operación queda auditada. Un expediente con un evento pendiente no admite aprobación hasta que se complete su recuperación.

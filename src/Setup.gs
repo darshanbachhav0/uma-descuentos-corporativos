@@ -24,8 +24,14 @@ function setupSpreadsheet_() {
   var ss=book_();ss.setSpreadsheetTimeZone('America/Lima');
   Object.keys(UMA.schema).forEach(function(name){
     var s=ss.getSheetByName(name)||ss.insertSheet(name),h=UMA.schema[name];
+    if(s.getMaxColumns()<h.length)s.insertColumnsAfter(s.getMaxColumns(),h.length-s.getMaxColumns());
     if(s.getLastRow()===0)s.getRange(1,1,1,h.length).setValues([h]);
-    else assert_(h.every(function(k){return s.getRange(1,1,1,s.getLastColumn()).getValues()[0].indexOf(k)>=0;}),'Esquema incompatible: '+name);
+    else {
+      var existing=s.getRange(1,1,1,s.getLastColumn()).getValues()[0];
+      assert_(existing.every(function(value,index){return value&&existing.indexOf(value)===index;}),'Encabezados vacíos o duplicados: '+name);
+      var missing=h.filter(function(k){return existing.indexOf(k)<0;});
+      if(missing.length){var needed=existing.length+missing.length;if(s.getMaxColumns()<needed)s.insertColumnsAfter(s.getMaxColumns(),needed-s.getMaxColumns());s.getRange(1,existing.length+1,1,missing.length).setValues([missing]);}
+    }
     s.setFrozenRows(1);s.getRange(1,1,1,s.getLastColumn()).setBackground('#692572').setFontColor('#ffffff').setFontWeight('bold');
     s.setColumnWidths(1,s.getLastColumn(),180);
     if(!s.getFilter())s.getRange(1,1,Math.max(s.getLastRow(),2),s.getLastColumn()).createFilter();
