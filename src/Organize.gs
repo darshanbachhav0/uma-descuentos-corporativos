@@ -1,7 +1,8 @@
 /**
  * Owner action, run once from the Apps Script editor: organizeSpreadsheet()
  *
- * Leaves the main spreadsheet with only the response tab of the application form ("Form Responses 1").
+ * Leaves the main spreadsheet with a single tab, "Respuestas de estudiantes": one row per student with every
+ * submission and its documents in date order (see ResponsesSheet.gs).
  * The platform's own tables (Solicitudes, Documentos, Eventos, ...) are moved to a separate private
  * spreadsheet, "UMA — Datos del sistema (no editar)", inside the system's Drive folder. The old correction
  * form stops writing into the main spreadsheet and its response tab is removed, as are empty default tabs.
@@ -49,7 +50,18 @@ function organizeSpreadsheet() {
       if (destination === c.SPREADSHEET_ID) correction.removeDestination();
       linked.forEach(function(s){ report.removed.push(s.getName()); main.deleteSheet(s); });
     }
-    // 4. Empty tabs that are not linked to a form (e.g. "Sheet1"). Anything with data is kept and reported.
+    // 4. One row per student instead of Google's one row per submission: build "Respuestas de estudiantes"
+    //    from the platform data, then stop the application form writing raw rows and remove its tab.
+    if (c.GOOGLE_FORM_ID) {
+      p.setProperty('RESPONSES_SHEET', 'summary');
+      rebuildResponsesSheet_();
+      var applicationForm = FormApp.openById(c.GOOGLE_FORM_ID), formDestination = '';
+      try { formDestination = applicationForm.getDestinationId(); } catch (e) { formDestination = ''; }
+      var rawTabs = main.getSheets().filter(function(s){ var url = ''; try { url = s.getFormUrl() || ''; } catch (e) {} return url.indexOf(c.GOOGLE_FORM_ID) >= 0; });
+      if (formDestination === c.SPREADSHEET_ID) applicationForm.removeDestination();
+      rawTabs.forEach(function(s){ report.removed.push(s.getName()); main.deleteSheet(s); });
+    }
+    // 5. Empty tabs that are not linked to a form (e.g. "Sheet1"). Anything with data is kept and reported.
     main.getSheets().forEach(function(s){
       var url = ''; try { url = s.getFormUrl() || ''; } catch (e) {}
       if (url) { report.kept.push(s.getName()); return; }

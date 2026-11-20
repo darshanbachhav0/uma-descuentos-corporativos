@@ -83,7 +83,7 @@ function ingest_(response,correction) {
       }
       a.processingError='';saveApplication_(a);
       if(cfg.RECEIPT_EMAIL_ENABLED==='true')queueReceiptEmail_(a,key,revision,issues);
-      event.status='DONE';event.error='';event.retryAt='';put_('Eventos',event);audit_(UMA.owner,correction?'CORRECTION_RECEIVED':(revision>1?'RESUBMISSION_RECEIVED':'APPLICATION_RECEIVED'),a.id,'Revisión '+revision+(issues.length?' · '+issues.length+' alerta(s)':''));return a.id;
+      event.status='DONE';event.error='';event.retryAt='';put_('Eventos',event);syncStudentRowSafely_(a);audit_(UMA.owner,correction?'CORRECTION_RECEIVED':(revision>1?'RESUBMISSION_RECEIVED':'APPLICATION_RECEIVED'),a.id,'Revisión '+revision+(issues.length?' · '+issues.length+' alerta(s)':''));return a.id;
     }catch(e){
       event.status='ERROR';event.error=String(e.message);event.retryAt=new Date(Date.now()+Math.min(86400000,600000*Math.pow(2,Math.min(8,event.attempts-1)))).toISOString();put_('Eventos',event);
       if(event.applicationId){try{var failed=application_(event.applicationId);failed.processingError=e.message;saveApplication_(failed);}catch(_){}}

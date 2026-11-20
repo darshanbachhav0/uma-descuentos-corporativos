@@ -557,7 +557,8 @@ function managementLink_(id,fileId){var origin=String(config_().FRONTEND_ORIGINS
 /**
  * Owner action, run once from the Apps Script editor: organizeSpreadsheet()
  *
- * Leaves the main spreadsheet with only the response tab of the application form ("Form Responses 1").
+ * Leaves the main spreadsheet with a single tab, "Respuestas de estudiantes": one row per student with every
+ * submission and its documents in date order (see ResponsesSheet.gs).
  * The platform's own tables (Solicitudes, Documentos, Eventos, ...) are moved to a separate private
  * spreadsheet, "UMA — Datos del sistema (no editar)", inside the system's Drive folder. The old correction
  * form stops writing into the main spreadsheet and its response tab is removed, as are empty default tabs.
@@ -605,7 +606,18 @@ function organizeSpreadsheet() {
       if (destination === c.SPREADSHEET_ID) correction.removeDestination();
       linked.forEach(function(s){ report.removed.push(s.getName()); main.deleteSheet(s); });
     }
-    // 4. Empty tabs that are not linked to a form (e.g. "Sheet1"). Anything with data is kept and reported.
+    // 4. One row per student instead of Google's one row per submission: build "Respuestas de estudiantes"
+    //    from the platform data, then stop the application form writing raw rows and remove its tab.
+    if (c.GOOGLE_FORM_ID) {
+      p.setProperty('RESPONSES_SHEET', 'summary');
+      rebuildResponsesSheet_();
+      var applicationForm = FormApp.openById(c.GOOGLE_FORM_ID), formDestination = '';
+      try { formDestination = applicationForm.getDestinationId(); } catch (e) { formDestination = ''; }
+      var rawTabs = main.getSheets().filter(function(s){ var url = ''; try { url = s.getFormUrl() || ''; } catch (e) {} return url.indexOf(c.GOOGLE_FORM_ID) >= 0; });
+      if (formDestination === c.SPREADSHEET_ID) applicationForm.removeDestination();
+      rawTabs.forEach(function(s){ report.removed.push(s.getName()); main.deleteSheet(s); });
+    }
+    // 5. Empty tabs that are not linked to a form (e.g. "Sheet1"). Anything with data is kept and reported.
     main.getSheets().forEach(function(s){
       var url = ''; try { url = s.getFormUrl() || ''; } catch (e) {}
       if (url) { report.kept.push(s.getName()); return; }
@@ -653,6 +665,7 @@ function resetAllData(confirmation) {
     resetForms_();
     UMA_RESET_TABLES_.forEach(clearTable_);
     resetLinkedResponseSheets_();
+    if (responsesSheetEnabled_()) rebuildResponsesSheet_();
     var p = properties_(), now = String(Date.now());
     p.setProperty('SEQUENCE_' + config_().ACADEMIC_PERIOD.slice(0, 4), '0');
     p.setProperty('CURSOR_GOOGLE_FORM_ID', now); p.setProperty('CURSOR_CORRECTION_FORM_ID', now);
@@ -701,6 +714,81 @@ function resetLinkedResponseSheets_() {
 }
 
 
+// --- ResponsesSheet.gs ---
+/**
+ * "Respuestas de estudiantes": the only tab of the main spreadsheet after organizeSpreadsheet().
+ * One row per student (grouped by institutional email, like the platform). The latest data, the status,
+ * and one "Envío N" column per submission in date order, with links to that submission's documents.
+ * Kept in sync automatically; the raw Google Forms tab is no longer used.
+ */
+var UMA_RESPONSES_SHEET_ = 'Respuestas de estudiantes';
+var UMA_RESPONSES_HEADERS_ = ['Código','Correo institucional','Correo personal','Tipo de documento','Número de documento','Apellidos y nombres','Escuela profesional','Convenio','Otro convenio','Estado','Envíos','Primer envío','Último envío'];
+var UMA_STATUS_TEXT_ = {RECIBIDA:'Recibida',EN_REVISION:'En revisión',OBSERVADA:'Observada · esperando al estudiante',CORRECCION_RECIBIDA:'Corrección recibida',VALIDADA_PENDIENTE_SIGU:'En revisión',APLICADA_SIGU:'Aplicada en SIGU'};
+
+function responsesSheetEnabled_() { return properties_().getProperty('RESPONSES_SHEET') === 'summary'; }
+/** "20/11/2026 14:33" in Lima time. */
+function limaText_(value) { var s = limaStamp_(value); return s.slice(8,10) + '/' + s.slice(5,7) + '/' + s.slice(0,4) + ' ' + s.slice(11,13) + ':' + s.slice(14,16); }
+
+function responsesSheet_() {
+  var book = responsesBook_(), sheet = book.getSheetByName(UMA_RESPONSES_SHEET_);
+  if (!sheet) {
+    sheet = book.insertSheet(UMA_RESPONSES_SHEET_, 0);
+    sheet.getRange(1, 1, 1, UMA_RESPONSES_HEADERS_.length).setValues([UMA_RESPONSES_HEADERS_]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, UMA_RESPONSES_HEADERS_.length).setFontWeight('bold').setBackground('#e91953').setFontColor('#ffffff');
+  }
+  return sheet;
+}
+/** Submissions of an application in date order, each with its documents. */
+function submissionsOf_(a) {
+  var docs = rows_('Documentos').filter(function(d){ return d.applicationId === a.id; });
+  var events = rows_('Eventos').filter(function(e){ return e.applicationId === a.id && e.status === 'DONE'; });
+  var revisions = {};
+  events.forEach(function(e){ var r = Number(e.revision) || 1; revisions[r] = revisions[r] || {revision:r, at:e.timestamp, docs:[]}; });
+  docs.forEach(function(d){ var r = Number(d.revision) || 1; revisions[r] = revisions[r] || {revision:r, at:'', docs:[]}; revisions[r].docs.push(d); if (d.submittedAt) revisions[r].at = d.submittedAt; else if (!revisions[r].at) revisions[r].at = d.createdAt; });
+  if (!revisions[1]) revisions[1] = {revision:1, at:a.createdAt, docs:[]};
+  return Object.keys(revisions).map(Number).sort(function(x, y){ return x - y; }).map(function(r){
+    var item = revisions[r]; item.docs.sort(function(x, y){ return (x.kind === 'socioeconomic' ? 0 : 1) - (y.kind === 'socioeconomic' ? 0 : 1) || String(x.name).localeCompare(String(y.name)); }); return item;
+  });
+}
+/** Cell for one submission: date, then one linked line per document. */
+function submissionCell_(item) {
+  var lines = ['Revisión ' + item.revision + ' · ' + limaText_(item.at)], links = [];
+  if (!item.docs.length) lines.push('(sin documentos)');
+  item.docs.forEach(function(d){
+    var label = (d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Documento sustentatorio');
+    var start = lines.join('\n').length + 1; lines.push(label); links.push([start, start + label.length, d.url]);
+  });
+  var builder = SpreadsheetApp.newRichTextValue().setText(lines.join('\n'));
+  links.forEach(function(l){ if (l[2]) builder = builder.setLinkUrl(l[0], l[1], l[2]); });
+  return builder.build();
+}
+/** Writes (or adds) the student's row. Best effort: callers ignore failures so a sheet issue never blocks the platform. */
+function syncStudentRow_(a) {
+  if (!responsesSheetEnabled_() || !a || !a.id) return;
+  var sheet = responsesSheet_(), last = sheet.getLastRow(), row = last + 1;
+  if (last > 1) { var codes = sheet.getRange(2, 1, last - 1, 1).getValues(); for (var i = 0; i < codes.length; i++) if (String(codes[i][0]) === a.id) { row = i + 2; break; } }
+  var items = submissionsOf_(a), base = [a.id, a.institutionalEmail, a.personalEmail || '', a.identityType, String(a.identityNumber || ''), a.name, a.school, a.discount, a.otherDiscount || '',
+    UMA_STATUS_TEXT_[a.status] || a.status, String(items.length), limaText_(a.createdAt), limaText_(a.lastSubmissionAt || a.createdAt)];
+  var needed = UMA_RESPONSES_HEADERS_.length + items.length, have = Math.max(sheet.getLastColumn(), UMA_RESPONSES_HEADERS_.length);
+  if (needed > have) {
+    var extra = []; for (var k = have - UMA_RESPONSES_HEADERS_.length + 1; k <= items.length; k++) extra.push('Envío ' + k);
+    sheet.getRange(1, have + 1, 1, extra.length).setValues([extra]).setFontWeight('bold').setBackground('#e91953').setFontColor('#ffffff');
+  }
+  // Text format keeps document numbers with leading zeros and dates exactly as written.
+  sheet.getRange(row, 1, 1, base.length).setNumberFormat('@').setValues([base]);
+  sheet.getRange(row, UMA_RESPONSES_HEADERS_.length + 1, 1, items.length).setRichTextValues([items.map(submissionCell_)]).setWrap(true);
+}
+function syncStudentRowSafely_(a) { try { syncStudentRow_(a); } catch (e) { error_('RESPONSES_SHEET', a && a.id, e); } }
+/** Rebuilds every row from the platform data, oldest application first. */
+function rebuildResponsesSheet_() {
+  var sheet = responsesSheet_(), last = sheet.getLastRow();
+  if (last > 2) sheet.deleteRows(3, last - 2);
+  if (last > 1) sheet.getRange(2, 1, 1, sheet.getMaxColumns()).clearContent();
+  rows_('Solicitudes').sort(function(x, y){ return String(x.createdAt).localeCompare(String(y.createdAt)); }).forEach(syncStudentRow_);
+}
+
+
 // --- Review.gs ---
 function saveDecision(input) {
   var actor=reviewer_();assert_(input&&/^[\w-]{12,100}$/.test(input.requestId),'Identificador de decisión inválido');
@@ -739,7 +827,7 @@ function applyDecision_(j) {
   }
   queueDecisionEmail_(a,d.decision,j.key);
   // Queue dispatch checks lastDecisionKey; a half-written decision cannot send email.
-  saveApplication_(a);j.status='DONE';j.error='';put_('Decisiones',j);
+  saveApplication_(a);j.status='DONE';j.error='';put_('Decisiones',j);syncStudentRowSafely_(a);
   audit_(j.reviewer,'REVIEW_'+d.decision,a.id,old+' → '+a.status);
 }
 function recoverDecisions_(){rows_('Decisiones').filter(function(j){return j.status==='PENDING';}).slice(0,20).forEach(function(j){try{applyDecision_(j);}catch(e){j.error=e.message;put_('Decisiones',j);error_('DECISION_RECOVERY',j.key,e);}});}
@@ -773,7 +861,7 @@ function initializeProject() {
     if(!c.CORRECTION_FORM_ID)p.setProperty('CORRECTION_FORM_ID',createForm_(true).getId());
     c=config_();
     [['GOOGLE_FORM_ID',false],['CORRECTION_FORM_ID',true]].forEach(function(pair){
-      var form=FormApp.openById(c[pair[0]]);if(!(pair[1]&&c.SYSTEM_SPREADSHEET_ID))linkResponseDestination_(form,c.SPREADSHEET_ID);
+      var form=FormApp.openById(c[pair[0]]);if(!(pair[1]&&c.SYSTEM_SPREADSHEET_ID)&&c.RESPONSES_SHEET!=='summary')linkResponseDestination_(form,c.SPREADSHEET_ID);
       mapQuestions_(form,pair[1]);
     });
     audit_(UMA.owner,'INITIALIZED','','Recursos creados o conservados');
@@ -1052,7 +1140,7 @@ function ingest_(response,correction) {
       }
       a.processingError='';saveApplication_(a);
       if(cfg.RECEIPT_EMAIL_ENABLED==='true')queueReceiptEmail_(a,key,revision,issues);
-      event.status='DONE';event.error='';event.retryAt='';put_('Eventos',event);audit_(UMA.owner,correction?'CORRECTION_RECEIVED':(revision>1?'RESUBMISSION_RECEIVED':'APPLICATION_RECEIVED'),a.id,'Revisión '+revision+(issues.length?' · '+issues.length+' alerta(s)':''));return a.id;
+      event.status='DONE';event.error='';event.retryAt='';put_('Eventos',event);syncStudentRowSafely_(a);audit_(UMA.owner,correction?'CORRECTION_RECEIVED':(revision>1?'RESUBMISSION_RECEIVED':'APPLICATION_RECEIVED'),a.id,'Revisión '+revision+(issues.length?' · '+issues.length+' alerta(s)':''));return a.id;
     }catch(e){
       event.status='ERROR';event.error=String(e.message);event.retryAt=new Date(Date.now()+Math.min(86400000,600000*Math.pow(2,Math.min(8,event.attempts-1)))).toISOString();put_('Eventos',event);
       if(event.applicationId){try{var failed=application_(event.applicationId);failed.processingError=e.message;saveApplication_(failed);}catch(_){}}

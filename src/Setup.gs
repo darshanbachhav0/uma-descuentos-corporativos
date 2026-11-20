@@ -12,7 +12,7 @@ function initializeProject() {
     if(!c.CORRECTION_FORM_ID)p.setProperty('CORRECTION_FORM_ID',createForm_(true).getId());
     c=config_();
     [['GOOGLE_FORM_ID',false],['CORRECTION_FORM_ID',true]].forEach(function(pair){
-      var form=FormApp.openById(c[pair[0]]);if(!(pair[1]&&c.SYSTEM_SPREADSHEET_ID))linkResponseDestination_(form,c.SPREADSHEET_ID);
+      var form=FormApp.openById(c[pair[0]]);if(!(pair[1]&&c.SYSTEM_SPREADSHEET_ID)&&c.RESPONSES_SHEET!=='summary')linkResponseDestination_(form,c.SPREADSHEET_ID);
       mapQuestions_(form,pair[1]);
     });
     audit_(UMA.owner,'INITIALIZED','','Recursos creados o conservados');

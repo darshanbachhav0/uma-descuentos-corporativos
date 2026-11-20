@@ -31,6 +31,7 @@ function resetAllData(confirmation) {
     resetForms_();
     UMA_RESET_TABLES_.forEach(clearTable_);
     resetLinkedResponseSheets_();
+    if (responsesSheetEnabled_()) rebuildResponsesSheet_();
     var p = properties_(), now = String(Date.now());
     p.setProperty('SEQUENCE_' + config_().ACADEMIC_PERIOD.slice(0, 4), '0');
     p.setProperty('CURSOR_GOOGLE_FORM_ID', now); p.setProperty('CURSOR_CORRECTION_FORM_ID', now);
