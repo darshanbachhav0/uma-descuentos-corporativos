@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: uma-descuentos-corporativos
+    runtime: static
+    branch: main
+    buildCommand: npm run build && npm run check && npm test
+    staticPublishPath: web-dist
+    routes:
+      - type: rewrite
+        source: /tesoreria
+        destination: /index.html
+      - type: rewrite
+        source: /estudiantes
+        destination: /estudiantes.html
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /*
+        name: Referrer-Policy
+        value: no-referrer
+      - path: /*
+        name: Content-Security-Policy
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; frame-src https://script.google.com https://*.googleusercontent.com https://drive.google.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+      - path: /config.json
+        name: Cache-Control
+        value: no-store

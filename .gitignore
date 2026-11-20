@@ -1,0 +1,13 @@
+node_modules/
+.clasp.json
+.env*
+!.env.example
+*.log
+coverage/
+private/
+tmp/
+.tools/
+web-dist/
+reference/form 1.pdf
+reference/form 2.pdf
+reference/form 3.pdf

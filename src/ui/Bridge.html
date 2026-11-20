@@ -1,0 +1,23 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>UMA · Conexión protegida</title></head><body>
+<p>Conexión de Tesorería UMA. Los permisos se comprueban en Google.</p>
+<script>
+(() => {
+  'use strict';
+  const settings = <?!= settings; ?>;
+  const allowed = new Set(['getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck']);
+  const send = data => window.top.postMessage({umaBridge:1,channel:settings.channel,...data},settings.origin);
+  let established=false;
+  const hello = setInterval(()=>{if(!established)send({type:'ready'});},700);
+  send({type:'ready'});
+  window.addEventListener('message',event=>{
+    if(event.source!==window.top || event.origin!==settings.origin)return;
+    const message=event.data;
+    if(!message || message.umaBridge!==1 || message.channel!==settings.channel)return;
+    if(message.type==='ack'){established=true;clearInterval(hello);return;}
+    if(message.type!=='request' || !/^[a-f0-9-]{36}$/.test(message.id)||!allowed.has(message.method)||!Array.isArray(message.args))return;
+    google.script.run.withSuccessHandler(result=>send({type:'response',id:message.id,result}))
+      .withFailureHandler(error=>send({type:'response',id:message.id,error:error.message||'Error de Google'}))
+      .bridgeCall({origin:settings.origin,method:message.method,args:message.args});
+  });
+})();
+</script></body></html>
