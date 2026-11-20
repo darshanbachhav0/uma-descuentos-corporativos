@@ -19,16 +19,16 @@ function doGet(e) {
 }
 function html_(name){return typeof UMA_UI_!=='undefined'?UMA_UI_[name]:HtmlService.createHtmlOutputFromFile(name).getContent();}
 function include_(name){return html_(name);}
-/** Suggested wording per observation category. Reviewers can edit it before sending. */
+/** Suggested observation text per category (what is wrong and how to fix it). Reviewers can edit it. */
 var UMA_TEMPLATES_ = {
-  'Ficha socioeconómica incompleta':['La ficha socioeconómica presentada tiene campos sin completar.','Complete todos los campos de la ficha socioeconómica a mano, fírmela y vuelva a adjuntarla en PDF o fotografía legible.'],
-  'Falta firma del estudiante':['La ficha socioeconómica no tiene la firma del estudiante.','Firme la ficha socioeconómica y vuelva a adjuntarla completa en PDF o fotografía legible.'],
-  'Documento ilegible':['Uno o más documentos no se pueden leer con claridad.','Vuelva a escanear o fotografiar los documentos con buena luz, sin cortes, y adjúntelos en PDF/JPG/PNG.'],
-  'Falta documento sustentatorio':['No se adjuntó el documento que sustenta el convenio seleccionado.','Adjunte el documento sustentatorio vigente del convenio (constancia, carné o documento emitido por la institución).'],
-  'Datos incorrectos':['Los datos registrados no coinciden con los documentos presentados.','Revise su número de documento, nombres y escuela, y vuelva a enviar el formulario con los datos correctos.'],
-  'Documento no corresponde':['El documento adjunto no corresponde a lo solicitado.','Adjunte la ficha socioeconómica 2027-I y el sustento del convenio seleccionado.'],
-  'Información incompleta':['La solicitud no contiene toda la información requerida.','Complete la información faltante y vuelva a enviar el formulario con todos los documentos.'],
-  'Otro':['','']
+  'Ficha socioeconómica incompleta':'La ficha socioeconómica presentada tiene campos sin completar. Complete todos los campos de la ficha socioeconómica a mano, fírmela y vuelva a adjuntarla en PDF o fotografía legible.',
+  'Falta firma del estudiante':'La ficha socioeconómica no tiene la firma del estudiante. Firme la ficha socioeconómica y vuelva a adjuntarla completa en PDF o fotografía legible.',
+  'Documento ilegible':'Uno o más documentos no se pueden leer con claridad. Vuelva a escanear o fotografiar los documentos con buena luz, sin cortes, y adjúntelos en PDF/JPG/PNG.',
+  'Falta documento sustentatorio':'No se adjuntó el documento que sustenta el convenio seleccionado. Adjunte el documento sustentatorio vigente del convenio (constancia, carné o documento emitido por la institución).',
+  'Datos incorrectos':'Los datos registrados no coinciden con los documentos presentados. Revise su número de documento, nombres y escuela, y vuelva a enviar el formulario con los datos correctos.',
+  'Documento no corresponde':'El documento adjunto no corresponde a lo solicitado. Adjunte la ficha socioeconómica 2027-I y el sustento del convenio seleccionado.',
+  'Información incompleta':'La solicitud no contiene toda la información requerida. Complete la información faltante y vuelva a enviar el formulario con todos los documentos.',
+  'Otro':''
 };
 function studentFormUrl_(c){
   // Opening the form costs ~1 s; the published URL rarely changes, so keep it for six hours.

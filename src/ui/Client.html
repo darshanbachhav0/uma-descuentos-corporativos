@@ -5,55 +5,46 @@ const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels = {
   RECIBIDA:'Recibida', EN_REVISION:'En revisión', OBSERVADA:'Observada', CORRECCION_RECIBIDA:'Corrección recibida',
-  VALIDADA_PENDIENTE_SIGU:'Validada · pendiente SIGU', APLICADA_SIGU:'Aplicada en SIGU',
+  VALIDADA_PENDIENTE_SIGU:'Validada, pendiente SIGU', APLICADA_SIGU:'Aplicada en SIGU',
   PENDING:'En cola', SENDING:'Enviando', SENT:'Aceptado por Google', UNCERTAIN:'Requiere comprobación', CANCELLED:'Reemplazado',
   DONE:'Procesado', ERROR:'Con error', PROCESSING:'Procesando'
 };
 const emailTypes = {APPROVED:'Aprobación', OBSERVED:'Observación', RECEIVED:'Acuse de recepción'};
 const VIEWS = {
-  overview:     {title:'Resumen', description:'Estado del periodo y últimas solicitudes recibidas.', list:'Solicitudes recientes', filter:{}},
-  pending:      {title:'Pendientes', description:'Toda solicitud que aún no se aplica en SIGU, incluidas las observadas.', list:'Solicitudes pendientes', filter:{pendingOnly:true}, chips:true},
-  review:       {title:'Por revisar', description:'Solicitudes que esperan una decisión de Tesorería.', list:'Por revisar', filter:{queue:'review'}},
-  observed:     {title:'Observadas', description:'Esperan la corrección del estudiante y siguen pendientes hasta su aprobación.', list:'Observadas', filter:{status:'OBSERVADA'}},
-  approved:     {title:'Aplicadas en SIGU', description:'Descuentos con registro en SIGU confirmado por Tesorería.', list:'Aplicadas en SIGU', filter:{status:'APLICADA_SIGU'}},
-  applications: {title:'Todas las solicitudes', description:'Una solicitud por correo institucional; cada nuevo envío se añade como revisión.', list:'Todas las solicitudes', filter:{}},
-  emails:       {title:'Correos', description:'Notificaciones enviadas a los estudiantes.'},
-  audit:        {title:'Auditoría', description:'Acciones registradas y errores del sistema.'},
-  settings:     {title:'Configuración', description:'Notificaciones, dominios y estado de Google Workspace.'}
+  pending:      {filter:{pendingOnly:true}},
+  review:       {filter:{queue:'review'}},
+  observed:     {filter:{status:'OBSERVADA'}},
+  approved:     {filter:{status:'APLICADA_SIGU'}},
+  applications: {filter:{}},
+  emails:       {}
 };
-const LIST_VIEWS = ['overview','pending','review','observed','approved','applications'];
-const PAGE_SIZE = 20;
-let boot, view = 'overview', page = 1, total = 0, queue = '', ids = [], detail = null, pendingDecision = null, choice = '';
+const PAGE_SIZE = 25;
+let boot, view = 'pending', page = 1, total = 0, queue = '', ids = [], detail = null, pendingDecision = null;
 let busyCount = 0, searchTimer, listRequest = 0, previewObjectUrl = null;
 
-const date = v => v ? new Intl.DateTimeFormat('es-PE', {dateStyle:'medium', timeStyle:'short', timeZone:'America/Lima'}).format(new Date(v)) : '—';
-const shortDate = v => v ? new Intl.DateTimeFormat('es-PE', {day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit', timeZone:'America/Lima'}).format(new Date(v)) : '—';
-const badge = s => `<span class="badge ${esc(s)}">${esc(labels[s] || s || 'Sin notificación')}</span>`;
-const initials = n => String(n || '').split(/\s+/).filter(Boolean).slice(0, 2).map(v => v[0]).join('').toUpperCase() || '·';
+const date = v => v ? new Intl.DateTimeFormat('es-PE', {dateStyle:'short', timeStyle:'short', timeZone:'America/Lima'}).format(new Date(v)) : '—';
+const status = s => `<span class="status ${esc(s)}">${esc(labels[s] || s || '—')}</span>`;
 const issueLines = a => String(a.issues || '').split('\n').map(s => s.trim()).filter(Boolean);
-const safeUrl = value => { try { const u = new URL(value); return u.protocol === 'https:' && ['drive.google.com','docs.google.com'].includes(u.hostname) ? u.href : '#'; } catch { return '#'; } };
-const link = (url, text) => `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer">${esc(text)}</a>`;
-const remember = (key, value) => { try { if (value === undefined) return localStorage.getItem(key); localStorage.setItem(key, value); } catch { return null; } };
 
 function toast(message, error = false) {
   $('toast').textContent = message; $('toast').className = 'toast' + (error ? ' error' : '');
-  clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').classList.add('hidden'), error ? 9000 : 5000);
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').classList.add('hidden'), error ? 8000 : 4000);
 }
 function handle(error) { toast(error.message || String(error), true); }
 
 async function api(method, ...args) {
-  if (++busyCount === 1) { $('progress').classList.remove('hidden'); clearTimeout(api.slow); api.slow = setTimeout(() => $('busy').classList.remove('hidden'), 1500); }
+  if (++busyCount === 1) $('progress').classList.remove('hidden');
   try {
     if (window.UMA_DEMO) return await window.UMA_DEMO.call(method, ...args);
     if (window.UMA_REMOTE) return await window.UMA_REMOTE.call(method, ...args);
     if (!window.google?.script?.run) throw new Error('Abra el panel desde el despliegue autorizado.');
     return await new Promise((resolve, reject) => google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[method](...args));
   } finally {
-    if (--busyCount === 0) { clearTimeout(api.slow); $('progress').classList.add('hidden'); $('busy').classList.add('hidden'); }
+    if (--busyCount === 0) $('progress').classList.add('hidden');
   }
 }
 
-/* ---------- Lists ---------- */
+/* ---------- List ---------- */
 function filters() {
   const base = VIEWS[view]?.filter || {};
   return {...base, query:$('search').value.trim(), status:base.status || $('statusFilter').value, discount:$('discountFilter').value,
@@ -63,65 +54,44 @@ function choices(id, values) {
   while ($(id).options.length > 1) $(id).remove(1);
   values.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = labels[v] || v; $(id).append(o); });
 }
-function renderStats(s) {
-  const set = (id, value) => { $(id).textContent = value; };
-  set('statPending', s.pending); set('statReview', s.toReview ?? s.pending); set('statObserved', s.observed); set('statApplied', s.applied);
-  set('statPendingDetail', `${s.toReview ?? 0} por revisar · ${s.observed} esperando al estudiante`);
-  set('navPending', s.pending); set('navReview', s.toReview ?? 0); set('navObserved', s.observed); set('navApplied', s.applied); set('navTotal', s.total);
-  set('statTotalLabel', `${s.total} solicitud${s.total === 1 ? '' : 'es'} en el periodo`);
-  set('emailsSent', s.emailSent); set('emailsPending', s.emailPending); set('reviewHours', s.averageReviewHours + ' h');
-  set('uncertainCount', s.emailUncertain ? `${s.emailUncertain} envío(s) requieren comprobación en Correos.` : '');
+function renderCounts(s) {
+  $('navPending').textContent = s.pending; $('navReview').textContent = s.toReview ?? 0; $('navObserved').textContent = s.observed;
+  $('navApplied').textContent = s.applied; $('navTotal').textContent = s.total;
   const notes = [];
-  if (s.attention) notes.push(`<span><strong>${s.attention}</strong> solicitud${s.attention === 1 ? '' : 'es'} con alertas por revisar</span><button class="text-link" data-attention>Ver</button>`);
-  if (s.unlinked) notes.push(`<span><strong>${s.unlinked}</strong> envío(s) del formulario no se pudieron procesar todavía; el sistema los reintenta automáticamente.</span>${boot?.isAdmin ? '<button class="text-link" data-goto="audit">Ver errores</button>' : ''}`);
-  $('attentionBar').innerHTML = notes.map(n => `<div>${n}</div>`).join('');
+  if (s.attention) notes.push(`${s.attention} solicitud${s.attention === 1 ? '' : 'es'} con alertas.<button class="link" data-attention>Ver</button>`);
+  if (s.emailUncertain) notes.push(`${s.emailUncertain} correo(s) requieren comprobación.<button class="link" data-goto="emails">Ver</button>`);
+  if (s.unlinked) notes.push(`${s.unlinked} envío(s) del formulario aún no se pudieron procesar; el sistema los reintenta.`);
+  $('attentionBar').innerHTML = notes.join(' &nbsp;·&nbsp; ');
   $('attentionBar').classList.toggle('hidden', !notes.length);
-  const pairs = Object.entries(s.byDiscount || {}).sort((a, b) => b[1] - a[1]), max = Math.max(1, ...pairs.map(p => p[1]));
-  $('discountChart').innerHTML = pairs.length
-    ? pairs.map(([name, n]) => `<div class="bar-row"><span>${esc(name)}</span><div class="bar-track"><div class="bar-fill" style="width:${n / max * 100}%"></div></div><strong>${n}</strong></div>`).join('')
-    : '<div class="chart-empty"><span class="ui-icon" data-icon="file"></span><p>La distribución por convenio aparecerá al recibir las primeras solicitudes.</p></div>';
 }
 function applicationRow(a) {
-  const alerts = issueLines(a).length, many = Number(a.submissions) > 1;
-  return `<tr class="${alerts || a.processingError ? 'flagged' : ''}" data-open="${esc(a.id)}" tabindex="0">
-    <td><div class="student-cell"><span class="student-avatar">${esc(initials(a.name))}</span><div><strong>${esc(a.name || 'Sin nombre')}</strong><small>${esc(a.institutionalEmail || 'Sin correo institucional')}</small><small>${esc(a.identityType)} ${esc(a.identityNumber)}</small></div></div></td>
-    <td><strong class="mono">${esc(a.id)}</strong><small>${many ? 'Último envío ' : 'Enviada '}${shortDate(a.lastSubmissionAt || a.createdAt)}</small>${many ? `<span class="pill">${esc(a.submissions)} envíos</span>` : ''}</td>
-    <td><span class="discount-pill">${esc(a.discount || '—')}</span><small class="school">${esc(a.school)}</small></td>
-    <td>${badge(a.status)}${a.status === 'OBSERVADA' ? '<small>Esperando al estudiante</small>' : ''}${alerts ? `<span class="flag-pill">${alerts} alerta${alerts === 1 ? '' : 's'}</span>` : ''}${a.processingError ? '<span class="flag-pill error">Error en documentos</span>' : ''}</td>
-    <td class="row-action"><button class="review-button" data-open="${esc(a.id)}">Abrir</button></td></tr>`;
+  const alerts = issueLines(a).length;
+  return `<tr data-open="${esc(a.id)}" tabindex="0">
+    <td class="code">${esc(a.id)}</td>
+    <td>${esc(a.name || '—')}<small>${esc(a.identityType)} ${esc(a.identityNumber)} · ${esc(a.school)}</small></td>
+    <td>${esc(a.institutionalEmail || '—')}</td>
+    <td>${esc(a.discount || '—')}</td>
+    <td>${esc(a.submissions || 1)}</td>
+    <td class="nowrap">${date(a.lastSubmissionAt || a.createdAt)}</td>
+    <td>${status(a.status)}${alerts ? `<span class="alert-mark">${alerts} alerta${alerts === 1 ? '' : 's'}</span>` : ''}${a.processingError ? '<span class="alert-mark bad">Error en documentos</span>' : ''}</td></tr>`;
 }
 async function loadApplications() {
-  const request = ++listRequest, size = view === 'overview' ? 10 : PAGE_SIZE;
-  const result = await api('listApplications', filters(), page, size);
+  const request = ++listRequest, result = await api('listApplications', filters(), page, PAGE_SIZE);
   if (request !== listRequest) return;
   total = result.total; ids = result.ids || result.rows.map(r => r.id);
-  renderStats(result.stats); $('resultCount').textContent = total;
-  const filtered = filters();
-  const searching = filtered.query || $('statusFilter').value || filtered.discount || filtered.school || filtered.from || filtered.to || queue;
-  $('applicationRows').innerHTML = result.rows.length ? result.rows.map(applicationRow).join('') :
-    `<tr><td colspan="5" class="empty"><div class="empty-state"><span class="ui-icon" data-icon="file"></span><strong>${searching ? 'Sin resultados' : result.stats.total ? 'Nada pendiente aquí' : 'Aún no hay solicitudes'}</strong><p>${searching ? 'Pruebe otro nombre, documento o filtro.' : result.stats.total ? 'Las solicitudes de esta vista aparecerán aquí.' : 'Los envíos del formulario de estudiantes aparecerán aquí automáticamente.'}</p></div></td></tr>`;
-  $('paginationText').textContent = total ? `${(page - 1) * size + 1}–${Math.min(page * size, total)} de ${total}` : '0 solicitudes';
-  $('pageNumber').textContent = page; $('prevPage').disabled = page <= 1; $('nextPage').disabled = page * size >= total;
-  $('applicationsPanel').querySelector('.table-footer').classList.toggle('hidden', view === 'overview' && total <= size);
+  renderCounts(result.stats);
+  $('applicationRows').innerHTML = result.rows.length ? result.rows.map(applicationRow).join('') : '<tr><td colspan="7" class="empty">No hay solicitudes en esta vista.</td></tr>';
+  $('paginationText').textContent = total ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} de ${total}` : '';
+  $('prevPage').disabled = page <= 1; $('nextPage').disabled = page * PAGE_SIZE >= total;
 }
 async function navigate(next) {
-  view = VIEWS[next] ? next : 'overview'; page = 1; queue = ''; closeMenu();
-  document.querySelectorAll('.nav').forEach(b => { const on = b.dataset.view === view; b.classList.toggle('active', on); on ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'); });
-  const isList = LIST_VIEWS.includes(view), v = VIEWS[view];
-  $('pageTitle').textContent = v.title; $('pageDescription').textContent = v.description;
-  $('stats').classList.toggle('hidden', view !== 'overview'); $('analytics').classList.toggle('hidden', view !== 'overview');
-  $('applicationsPanel').classList.toggle('hidden', !isList); $('attentionBar').classList.toggle('hidden', !isList || !$('attentionBar').innerHTML);
-  $('emailsPanel').classList.toggle('hidden', view !== 'emails'); $('auditPanel').classList.toggle('hidden', view !== 'audit'); $('settingsPanel').classList.toggle('hidden', view !== 'settings');
-  $('export').classList.toggle('hidden', !isList);
-  if (isList) {
-    $('listTitle').firstChild.textContent = v.list + ' ';
-    $('queueChips').classList.toggle('hidden', !v.chips);
-    document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c.dataset.queue === ''));
-    $('statusFilter').value = v.filter.status || ''; $('statusFilter').disabled = !!v.filter.status;
-    await loadApplications();
-  } else if (view === 'emails') await loadEmails();
-  else if (view === 'settings') await loadHealth();
-  else if (view === 'audit') await loadAudit();
+  view = VIEWS[next] ? next : 'pending'; page = 1; queue = '';
+  document.querySelectorAll('.tab').forEach(b => { const on = b.dataset.view === view; b.classList.toggle('active', on); on ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'); });
+  $('applicationsPanel').classList.toggle('hidden', view === 'emails'); $('emailsPanel').classList.toggle('hidden', view !== 'emails');
+  if (view === 'emails') return loadEmails();
+  const fixed = VIEWS[view].filter.status;
+  $('statusFilter').value = fixed || ''; $('statusFilter').disabled = !!fixed;
+  await loadApplications();
 }
 
 /* ---------- Documents ---------- */
@@ -136,183 +106,141 @@ function downloadFile(file) {
   a.href = url; a.download = file.name; document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 const fileCache = new Map();
-async function documentFile(fileId) {
+function documentFile(fileId) {
   const key = detail.application.id + ':' + fileId;
-  if (!fileCache.has(key)) { if (fileCache.size > 12) fileCache.delete(fileCache.keys().next().value); fileCache.set(key, api('getDocumentFile', detail.application.id, fileId).catch(e => { fileCache.delete(key); throw e; })); }
+  if (!fileCache.has(key)) {
+    if (fileCache.size > 12) fileCache.delete(fileCache.keys().next().value);
+    fileCache.set(key, api('getDocumentFile', detail.application.id, fileId).catch(e => { fileCache.delete(key); throw e; }));
+  }
   return fileCache.get(key);
 }
 async function previewDocument(fileId) {
   const id = detail.application.id;
-  document.querySelectorAll('[data-preview]').forEach(b => b.closest('.doc-item').classList.toggle('active', b.dataset.preview === fileId));
-  $('previewWrap').classList.remove('hidden'); $('previewWrap').classList.add('loading');
-  try {
-    const file = await documentFile(fileId);
-    if (!detail || detail.application.id !== id) return;
-    releasePreview(); previewObjectUrl = URL.createObjectURL(fileBlob(file));
-    $('documentPreview').src = previewObjectUrl; $('previewName').textContent = file.name;
-  } finally { $('previewWrap')?.classList.remove('loading'); }
+  document.querySelectorAll('[data-preview]').forEach(b => b.closest('li').classList.toggle('active', b.dataset.preview === fileId));
+  const file = await documentFile(fileId);
+  if (!detail || detail.application.id !== id) return;
+  releasePreview(); previewObjectUrl = URL.createObjectURL(fileBlob(file));
+  $('documentPreview').src = previewObjectUrl; $('documentPreview').classList.remove('hidden');
 }
 
-/* ---------- Application detail ---------- */
-function documentsByRevision(documents, current) {
-  const groups = {};
-  documents.forEach(d => (groups[d.revision] = groups[d.revision] || []).push(d));
-  return Object.keys(groups).map(Number).sort((a, b) => b - a).map(rev => `<div class="rev-group"><div class="rev-head">Revisión ${rev}${rev === Number(current) ? ' <span class="pill">Actual</span>' : ''}</div>${groups[rev].map(d => `<div class="doc-item"><div><span class="ui-icon" data-icon="file"></span><div><strong>${esc(d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Documento sustentatorio')}</strong><span class="muted">${esc(d.name)}</span></div></div><div><button data-preview="${esc(d.fileId)}"><span class="ui-icon" data-icon="eye"></span>Ver</button><button data-download="${esc(d.fileId)}"><span class="ui-icon" data-icon="download"></span>Descargar</button></div></div>`).join('')}</div>`).join('');
+/* ---------- Application ---------- */
+function documentList(documents, current) {
+  if (!documents.length) return '<p class="hint">Sin documentos procesados.</p>';
+  const revisions = [...new Set(documents.map(d => Number(d.revision)))].sort((a, b) => b - a);
+  return '<ul class="docs">' + revisions.map(rev => `<li class="rev">Revisión ${rev}${rev === Number(current) ? ' (actual)' : ''}</li>` +
+    documents.filter(d => Number(d.revision) === rev).map(d => `<li><span class="name">${d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Sustento'} · ${esc(d.name)}</span><span class="actions"><button class="link" data-preview="${esc(d.fileId)}">Ver</button><button class="link" data-download="${esc(d.fileId)}">Descargar</button></span></li>`).join('')).join('') + '</ul>';
 }
 function decisionPanel(a) {
-  const editable = !['APLICADA_SIGU','OBSERVADA'].includes(a.status) && !a.processingError;
-  if (!editable) {
-    const message = a.status === 'APLICADA_SIGU' ? 'El descuento ya fue aplicado en SIGU.' : a.status === 'OBSERVADA' ? 'Esperando la corrección del estudiante. La solicitud sigue pendiente; cuando el estudiante vuelva a enviar el formulario con su correo institucional pasará a “Corrección recibida”.' : 'La revisión está bloqueada hasta que se resuelva el error de documentos.';
-    return `<div class="notice">${message}</div>${a.status === 'OBSERVADA' ? `<p class="muted">Enlace de corrección vigente hasta: <strong>${date(a.correctionExpiresAt)}</strong></p><button id="renewCorrection" class="button secondary">Enviar un nuevo enlace de corrección</button>` : ''}`;
-  }
-  const openNext = remember('uma.openNext') !== 'false';
-  return `<div class="choice-grid" role="radiogroup" aria-label="Decisión">
-      <button type="button" class="choice approve" role="radio" aria-checked="false" data-choice="APPROVED"><span class="ui-icon" data-icon="check"></span><span><strong>Aprobar</strong><small>El descuento ya está registrado en SIGU</small></span></button>
-      <button type="button" class="choice observe" role="radio" aria-checked="false" data-choice="OBSERVED"><span class="ui-icon" data-icon="alert"></span><span><strong>Observar</strong><small>Pedir una corrección al estudiante</small></span></button>
-    </div>
-    <form id="reviewForm" novalidate>
-      <div id="approvalFields" class="hidden"><label class="check"><input type="checkbox" id="siguConfirmed">Confirmo que registré el descuento en SIGU. Este panel no lo registra automáticamente.</label><label class="field">Referencia SIGU <span class="optional">(opcional)</span><input id="siguReference" maxlength="200" placeholder="N.º de operación o comentario"></label></div>
-      <div id="observationFields" class="hidden"><label class="field">Motivo<select id="category"><option value="">Seleccione un motivo</option>${boot.categories.map(c => `<option>${esc(c)}</option>`).join('')}</select><small>Al elegir un motivo se propone un texto que puede editar.</small></label><label class="field">Observación<textarea id="observation" maxlength="3000" placeholder="Qué debe corregirse…"></textarea></label><label class="field">Cómo corregir<textarea id="instructions" maxlength="3000" placeholder="Qué archivos o datos debe enviar…"></textarea></label></div>
-      <button id="submitDecision" class="button primary review-submit" type="submit" disabled><span class="ui-icon" data-icon="send"></span>Guardar y notificar</button>
-      <label class="check small"><input type="checkbox" id="openNext" ${openNext ? 'checked' : ''}>Abrir la siguiente solicitud después de guardar</label>
-      <p class="muted">Se notificará a <strong>${esc(a.recipient || 'sin correo válido')}</strong></p>
-    </form>
-    <details class="more"><summary>Marcar etapa sin notificar</summary><div class="sub-actions"><button class="button secondary compact" data-stage="EN_REVISION">En revisión</button><button class="button secondary compact" data-stage="VALIDADA_PENDIENTE_SIGU">Validada · pendiente SIGU</button></div></details>`;
+  if (a.status === 'APLICADA_SIGU') return '<p class="note">El descuento ya fue aplicado en SIGU.</p>';
+  if (a.status === 'OBSERVADA') return `<p class="note">Esperando la corrección del estudiante (sigue pendiente). Enlace vigente hasta ${date(a.correctionExpiresAt)}.</p><button id="renewCorrection" class="button">Enviar nuevo enlace de corrección</button>`;
+  if (a.processingError) return '<p class="note">La decisión está bloqueada hasta que se procesen los documentos.</p>';
+  return `<form id="reviewForm" class="decision" novalidate>
+    <label class="radio"><input type="radio" name="decision" value="APPROVED"> Aprobar (ya registrado en SIGU)</label>
+    <label class="radio"><input type="radio" name="decision" value="OBSERVED"> Observar</label>
+    <div id="approvalFields" class="hidden"><label class="check"><input type="checkbox" id="siguConfirmed"> Confirmo que el descuento está registrado en SIGU.</label><label for="siguReference">Referencia SIGU (opcional)</label><input type="text" id="siguReference" maxlength="200"></div>
+    <div id="observationFields" class="hidden"><label for="category">Motivo</label><select id="category"><option value="">Seleccione…</option>${boot.categories.map(c => `<option>${esc(c)}</option>`).join('')}</select><label for="observation">Observación para el estudiante</label><textarea id="observation" maxlength="3000"></textarea></div>
+    <button id="submitDecision" class="button primary" type="submit" disabled>Guardar y notificar</button>
+    <p class="hint">Se notificará a ${esc(a.recipient || 'sin correo válido')}.</p>
+  </form>`;
 }
 function renderDetail() {
   releasePreview();
   const {application:a, documents, history, observations, emails} = detail, submissions = detail.submissions || [];
   const position = ids.indexOf(a.id), alerts = issueLines(a);
   $('detailTitle').textContent = a.name || 'Sin nombre';
-  $('detailCode').textContent = `${a.id} · REVISIÓN ${a.revision}${Number(a.submissions) > 1 ? ' · ' + a.submissions + ' ENVÍOS' : ''}`;
-  $('detailBadges').innerHTML = badge(a.status) + (alerts.length ? `<span class="flag-pill">${alerts.length} alerta${alerts.length === 1 ? '' : 's'}</span>` : '');
+  $('detailCode').innerHTML = `<span class="code">${esc(a.id)}</span> · revisión ${esc(a.revision)} · ${status(a.status)}`;
   $('detailPosition').textContent = position >= 0 ? `${position + 1} de ${ids.length}` : '';
   $('prevDetail').disabled = position <= 0; $('nextDetail').disabled = position < 0 || position >= ids.length - 1;
-  const data = [['Correo institucional', a.institutionalEmail], ['Correo personal', a.personalEmail || 'No registrado'], ['Documento', `${a.identityType} ${a.identityNumber}`], ['Escuela profesional', a.school], ['Convenio', a.discount + (a.otherDiscount ? ' · ' + a.otherDiscount : '')], ['Primer envío', date(a.createdAt)], ['Último envío', date(a.lastSubmissionAt || a.createdAt)], ['Revisor', a.reviewer || 'Sin asignar']];
+  const facts = [['Correo institucional', a.institutionalEmail], ['Correo personal', a.personalEmail || '—'], ['Documento', `${a.identityType} ${a.identityNumber}`], ['Escuela', a.school], ['Convenio', a.discount + (a.otherDiscount ? ' · ' + a.otherDiscount : '')], ['Envíos', `${a.submissions || 1} (último ${date(a.lastSubmissionAt || a.createdAt)})`], ['Revisor', a.reviewer || '—']];
   $('detailContent').innerHTML = `<div class="detail-grid"><section class="detail-left">
-    ${alerts.length ? `<div class="alert-box"><div><strong>Revise estas alertas del envío</strong><ul>${alerts.map(i => `<li>${esc(i)}</li>`).join('')}</ul></div><button class="button secondary compact" data-ack>Marcar como revisadas</button></div>` : ''}
-    ${a.processingError ? `<div class="error-box"><strong>Error al procesar documentos:</strong> ${esc(a.processingError)}<br><small>El sistema reintenta automáticamente. Si persiste, el administrador debe revisar el archivo en Auditoría.</small></div>` : ''}
-    <dl class="data-grid">${data.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
-    <div class="section-label">Documentos</div>
-    <div class="doc-list">${documents.length ? documentsByRevision(documents, a.revision) : '<p class="muted">Sin documentos procesados.</p>'}</div>
-    <div id="previewWrap" class="preview-wrap hidden"><div class="preview-bar"><span id="previewName" class="muted"></span></div><iframe id="documentPreview" class="preview" title="Vista previa del documento" referrerpolicy="no-referrer" allow="fullscreen"></iframe></div>
-    ${observations.length ? '<div class="section-label">Observaciones enviadas</div>' + observations.map(o => `<div class="notice"><strong>${esc(o.category)}</strong><p>${esc(o.observation)}</p><div>${esc(o.instructions)}</div><small>${date(o.timestamp)} · Revisión ${esc(o.revision)}</small></div>`).join('') : ''}
-    <details class="more history" ${submissions.length > 1 ? 'open' : ''}><summary>Envíos del estudiante (${submissions.length})</summary><div class="timeline">${submissions.map(e => `<div class="timeline-item"><strong>Revisión ${esc(e.revision)}${e.correction ? ' · formulario de corrección' : ''}</strong> ${e.status === 'DONE' ? '' : badge(e.status)}<small>${date(e.timestamp)}</small>${e.error ? `<div class="muted">${esc(e.error)}</div>` : ''}</div>`).join('') || '<p class="muted">Sin registros.</p>'}</div></details>
-    <details class="more history"><summary>Historial de estados (${history.length})</summary><div class="timeline">${history.map(h => `<div class="timeline-item"><strong>${esc(labels[h.toStatus] || h.toStatus)}</strong><div>${esc(h.detail)}</div><small>${date(h.timestamp)} · ${esc(h.reviewer)}</small></div>`).join('')}</div></details>
+    ${alerts.length ? `<div class="alerts"><strong>Alertas</strong><ul>${alerts.map(i => `<li>${esc(i)}</li>`).join('')}</ul><button class="button" data-ack>Marcar como revisadas</button></div>` : ''}
+    ${a.processingError ? `<div class="error">Error al procesar documentos: ${esc(a.processingError)}. El sistema lo reintenta automáticamente.</div>` : ''}
+    <dl class="facts">${facts.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+    <h3>Documentos</h3>${documentList(documents, a.revision)}
+    <iframe id="documentPreview" class="preview hidden" title="Vista previa del documento" referrerpolicy="no-referrer"></iframe>
+    ${observations.length ? '<h3>Observaciones enviadas</h3><ul class="log">' + observations.map(o => `<li>${esc(o.category)}: ${esc(o.observation)} <small>${date(o.timestamp)}</small></li>`).join('') + '</ul>' : ''}
+    <h3>Envíos del estudiante</h3><ul class="log">${submissions.map(e => `<li>Revisión ${esc(e.revision)}${e.correction ? ' (formulario de corrección)' : ''} <small>${date(e.timestamp)}</small>${e.status === 'DONE' ? '' : ' ' + status(e.status)}${e.error ? `<small>${esc(e.error)}</small>` : ''}</li>`).join('') || '<li>—</li>'}</ul>
+    <h3>Historial</h3><ul class="log">${history.map(h => `<li>${esc(labels[h.toStatus] || h.toStatus)}${h.detail ? ' · ' + esc(h.detail) : ''} <small>${date(h.timestamp)} · ${esc(h.reviewer)}</small></li>`).join('')}</ul>
   </section><section class="detail-right"><h2>Decisión</h2>${decisionPanel(a)}
-    <div class="section-label">Correos</div>${emails.map(m => `<div class="mail-item">${badge(m.status)} <strong>${esc(emailTypes[m.type] || m.type)}</strong><small>${esc(m.recipient)} · ${date(m.sentAt || m.createdAt)}</small>${m.error ? `<small class="muted">${esc(m.error)}</small>` : ''}</div>`).join('') || '<p class="muted">Aún no se enviaron correos.</p>'}
+    <h3>Correos</h3>${emails.map(m => `<div class="mail">${esc(emailTypes[m.type] || m.type)} · ${status(m.status)}<br><small class="sub">${esc(m.recipient)} · ${date(m.sentAt || m.createdAt)}</small></div>`).join('') || '<p class="hint">Sin correos.</p>'}
   </section></div>`;
   wireDecision();
   const first = documents.find(d => Number(d.revision) === Number(a.revision)) || documents[0];
   if (first && !window.UMA_DEMO) previewDocument(first.fileId).catch(handle);
 }
 function wireDecision() {
-  choice = '';
-  document.querySelectorAll('[data-choice]').forEach(button => button.onclick = () => selectChoice(button.dataset.choice));
-  if (!$('reviewForm')) return;
-  $('reviewForm').onsubmit = prepareDecision;
-  $('openNext').onchange = () => remember('uma.openNext', String($('openNext').checked));
+  const form = $('reviewForm'); if (!form) return;
+  form.onsubmit = prepareDecision;
+  form.querySelectorAll('[name=decision]').forEach(r => r.onchange = () => {
+    const value = form.querySelector('[name=decision]:checked').value;
+    $('approvalFields').classList.toggle('hidden', value !== 'APPROVED'); $('observationFields').classList.toggle('hidden', value !== 'OBSERVED');
+    $('submitDecision').disabled = false;
+  });
   $('category').onchange = () => {
     const template = boot.templates?.[$('category').value];
-    if (!template) return;
-    if (!$('observation').value.trim() || $('observation').dataset.auto) { $('observation').value = template[0]; $('observation').dataset.auto = '1'; }
-    if (!$('instructions').value.trim() || $('instructions').dataset.auto) { $('instructions').value = template[1]; $('instructions').dataset.auto = '1'; }
+    if (template && (!$('observation').value.trim() || $('observation').dataset.auto)) { $('observation').value = template; $('observation').dataset.auto = '1'; }
   };
-  ['observation','instructions'].forEach(id => $(id).oninput = () => delete $(id).dataset.auto);
-}
-function selectChoice(value) {
-  choice = value;
-  document.querySelectorAll('[data-choice]').forEach(b => { const on = b.dataset.choice === value; b.classList.toggle('selected', on); b.setAttribute('aria-checked', String(on)); });
-  $('approvalFields').classList.toggle('hidden', value !== 'APPROVED'); $('observationFields').classList.toggle('hidden', value !== 'OBSERVED');
-  $('submitDecision').disabled = false;
-  $('submitDecision').lastChild.textContent = value === 'APPROVED' ? 'Aprobar y notificar' : 'Enviar observación';
-  (value === 'APPROVED' ? $('siguConfirmed') : $('category')).focus();
+  $('observation').oninput = () => delete $('observation').dataset.auto;
 }
 async function openDetail(id) {
   detail = await api('getApplication', id);
   renderDetail();
   if (!$('detailDialog').open) $('detailDialog').showModal();
-  $('detailDialog').scrollTop = 0; $('detailDialog').querySelector('.detail-grid')?.scrollTo?.(0, 0);
+  $('detailDialog').scrollTop = 0;
 }
 async function step(offset) {
-  const position = ids.indexOf(detail?.application?.id), next = ids[position + offset];
+  const next = ids[ids.indexOf(detail?.application?.id) + offset];
   if (next) await openDetail(next);
 }
 function prepareDecision(event) {
   event.preventDefault();
-  const a = detail.application;
+  const a = detail.application, choice = $('reviewForm').querySelector('[name=decision]:checked')?.value;
   if (!choice) return toast('Elija Aprobar u Observar.', true);
-  if (choice === 'APPROVED' && !$('siguConfirmed').checked) return toast('Confirme primero que registró el descuento en SIGU.', true);
-  if (choice === 'OBSERVED' && (!$('category').value || $('observation').value.trim().length < 10 || $('instructions').value.trim().length < 10)) return toast('Elija un motivo y complete la observación y cómo corregir (mínimo 10 caracteres).', true);
-  pendingDecision = {requestId:crypto.randomUUID(), id:a.id, version:a.version, decision:choice, siguConfirmed:$('siguConfirmed').checked, siguReference:$('siguReference').value, category:$('category').value, observation:$('observation').value, instructions:$('instructions').value};
-  $('confirmTitle').textContent = choice === 'APPROVED' ? 'Confirmar aprobación' : 'Confirmar observación';
-  $('confirmText').textContent = `${choice === 'APPROVED' ? 'Confirmará que el descuento ya está registrado en SIGU' : 'Se registrará la observación y se pedirá la corrección'} para ${a.name}. Se enviará un correo a ${a.recipient}.`;
+  if (choice === 'APPROVED' && !$('siguConfirmed').checked) return toast('Confirme que el descuento está registrado en SIGU.', true);
+  if (choice === 'OBSERVED' && (!$('category').value || $('observation').value.trim().length < 10)) return toast('Elija un motivo y escriba la observación (mínimo 10 caracteres).', true);
+  pendingDecision = {requestId:crypto.randomUUID(), id:a.id, version:a.version, decision:choice, siguConfirmed:$('siguConfirmed').checked, siguReference:$('siguReference').value, category:$('category').value, observation:$('observation').value};
+  $('confirmTitle').textContent = choice === 'APPROVED' ? 'Aprobar solicitud' : 'Observar solicitud';
+  $('confirmText').textContent = `${a.name} (${a.id}). Se enviará un correo a ${a.recipient}.`;
   $('confirmDialog').showModal();
 }
 async function confirmDecision() {
   $('confirmDecision').disabled = true;
   try {
-    const id = pendingDecision.id, position = ids.indexOf(id), goNext = $('openNext')?.checked;
+    const id = pendingDecision.id, position = ids.indexOf(id), approved = pendingDecision.decision === 'APPROVED';
     await api('saveDecision', pendingDecision);
     $('confirmDialog').close(); pendingDecision = null;
-    toast(choice === 'APPROVED' ? 'Aprobación guardada. El correo quedó en cola.' : 'Observación guardada. El correo con el enlace de corrección quedó en cola.');
-    const before = ids.slice();
+    toast(approved ? 'Aprobación guardada. El correo quedó en cola.' : 'Observación guardada. El correo quedó en cola.');
     await loadApplications();
-    const next = goNext ? (ids.find((x, i) => i >= position && x !== id) || before.slice(position + 1).find(x => ids.includes(x))) : null;
-    if (next) await openDetail(next);
-    else if (goNext) { $('detailDialog').close(); toast('No quedan más solicitudes en esta lista.'); }
-    else await openDetail(id);
+    const next = ids.find((x, i) => i >= position && x !== id);
+    if (next) await openDetail(next); else { $('detailDialog').close(); toast('No quedan más solicitudes en esta vista.'); }
   } catch (e) { handle(e); } finally { $('confirmDecision').disabled = false; }
 }
 
-/* ---------- Other views ---------- */
+/* ---------- Emails ---------- */
 async function loadEmails() {
   const rows = await api('listEmails');
-  $('emailRows').innerHTML = rows.length ? rows.map(m => `<tr><td><button class="review-button" data-open="${esc(m.applicationId)}">${esc(m.applicationId)}</button></td><td>${esc(m.recipient)}</td><td><strong>${esc(emailTypes[m.type] || m.type)}</strong><small>${date(m.sentAt || m.createdAt)}</small></td><td>${badge(m.status)}${m.error ? `<small>${esc(m.error)}</small>` : ''}</td><td>${boot.isAdmin && m.status === 'UNCERTAIN' ? `<button class="button secondary compact" data-resolve="${esc(m.key)}" data-resolution="CONFIRM_SENT">Confirmar enviado</button> <button class="button secondary compact" data-resolve="${esc(m.key)}" data-resolution="REQUEUE">Reintentar</button>` : '—'}</td></tr>`).join('') : '<tr><td colspan="5" class="empty">No hay correos registrados.</td></tr>';
-}
-async function loadHealth() {
-  const h = await api('runSystemHealthCheck');
-  $('healthContent').innerHTML = `<p class="health-state ${h.ready ? 'ok' : 'warn'}">${h.ready ? '✓ Configuración verificada' : 'Configuración pendiente'}</p><ul class="health-list">${h.issues.map(i => `<li>${esc(i)}</li>`).join('')}</ul><p class="muted">Cuota diaria de correo restante: ${esc(h.quota)} · Disparadores: ${esc(h.triggers.length)}</p>${h.forms.map(f => `<p>${link(f.editUrl, f.type === 'GOOGLE_FORM_ID' ? 'Editar formulario de solicitud' : 'Editar formulario de corrección')} · ${f.accepting ? 'Abierto' : 'Cerrado'}</p>`).join('')}`;
-}
-async function loadAudit() {
-  const result = await api('listAudit');
-  $('auditContent').innerHTML = '<h2>Errores registrados</h2>' + (result.errors.map(e => `<div class="error-box"><strong>${esc(e.context)}</strong> · ${date(e.timestamp)}<br>${esc(e.message)}</div>`).join('') || '<p class="muted">Sin errores registrados.</p>') +
-    '<h2>Últimas acciones</h2><div class="timeline">' + result.audit.map(e => `<div class="timeline-item"><strong>${esc(e.action)}</strong> · ${esc(e.applicationId)}<div>${esc(e.detail)}</div><small>${date(e.timestamp)} · ${esc(e.actor)}</small></div>`).join('') + '</div>';
+  $('emailRows').innerHTML = rows.length ? rows.map(m => `<tr><td><button class="link code" data-open="${esc(m.applicationId)}">${esc(m.applicationId)}</button></td><td>${esc(m.recipient)}</td><td>${esc(emailTypes[m.type] || m.type)}</td><td class="nowrap">${date(m.sentAt || m.createdAt)}</td><td>${status(m.status)}${m.error ? `<small>${esc(m.error)}</small>` : ''}</td><td class="nowrap">${boot.isAdmin && m.status === 'UNCERTAIN' ? `<button class="button" data-resolve="${esc(m.key)}" data-resolution="CONFIRM_SENT">Marcar enviado</button> <button class="button" data-resolve="${esc(m.key)}" data-resolution="REQUEUE">Reintentar</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="empty">No hay correos.</td></tr>';
 }
 
 /* ---------- Start-up and events ---------- */
 async function init() {
   const [bootstrap] = await Promise.all([api('getBootstrap'), loadApplications().catch(handle)]);
   boot = bootstrap;
-  $('actor').textContent = boot.actor; $('avatar').textContent = initials(String(boot.actor).replace(/^gestión:/, ''));
-  $('period').textContent = boot.period; $('headingPeriod').textContent = boot.period; $('ownerEmail').textContent = boot.owner;
-  $('sheetLink').href = safeUrl(boot.spreadsheet);
-  $('emailEnabled').checked = boot.emailEnabled; $('receiptEnabled').checked = !!boot.receiptEnabled; $('domains').value = boot.domains || '';
+  $('actor').textContent = String(boot.actor).replace(/^gestión:/, ''); $('period').textContent = boot.period;
   $('pausedBanner').classList.toggle('hidden', boot.emailEnabled); $('demoBanner').classList.toggle('hidden', !window.UMA_DEMO);
-  document.querySelectorAll('.admin-only').forEach(e => e.classList.toggle('hidden', !boot.isAdmin));
   choices('statusFilter', boot.states); choices('discountFilter', boot.discounts); choices('schoolFilter', boot.schools);
-  $('pageDescription').textContent = VIEWS.overview.description;
   if (window.UMA_DEMO) $('logoutManagement').classList.add('hidden');
   if (window.UMA_REMOTE) window.UMA_REMOTE.connected();
   const linked = new URLSearchParams(location.hash.slice(1)), applicationId = linked.get('solicitud');
   if (applicationId) { try { await openDetail(applicationId); if (linked.get('documento')) await previewDocument(linked.get('documento')); } catch (error) { handle(error); } }
 }
-function closeMenu() {
-  const open = document.querySelector('.sidebar').classList.contains('open');
-  document.querySelector('.sidebar').classList.remove('open'); $('mobileMenu').setAttribute('aria-expanded', 'false');
-  if (open && matchMedia('(max-width:850px)').matches) $('mobileMenu').focus();
-}
 const reload = () => { page = 1; loadApplications().catch(handle); };
-$('navigation').onclick = e => { const button = e.target.closest('[data-view]'); if (button) navigate(button.dataset.view).catch(handle); };
-$('mobileMenu').onclick = () => { const open = document.querySelector('.sidebar').classList.toggle('open'); $('mobileMenu').setAttribute('aria-expanded', String(open)); };
-$('menuBackdrop').onclick = closeMenu;
+$('navigation').onclick = e => { const tab = e.target.closest('[data-view]'); if (tab) navigate(tab.dataset.view).catch(handle); };
 $('refresh').onclick = () => navigate(view).catch(handle);
 $('filters').onsubmit = e => { e.preventDefault(); reload(); };
 $('search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(reload, 300); };
 ['statusFilter','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).onchange = reload);
-$('advancedToggle').onclick = () => { const hidden = $('advancedFilters').classList.toggle('hidden'); $('advancedToggle').setAttribute('aria-expanded', String(!hidden)); };
-$('clearFilters').onclick = () => { ['search','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).value = ''); if (!$('statusFilter').disabled) $('statusFilter').value = ''; reload(); };
-$('queueChips').onclick = e => { const chip = e.target.closest('[data-queue]'); if (!chip) return; queue = chip.dataset.queue; document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c === chip)); reload(); };
+$('clearFilters').onclick = () => { ['search','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).value = ''); if (!$('statusFilter').disabled) $('statusFilter').value = ''; queue = ''; reload(); };
 $('prevPage').onclick = () => { page--; loadApplications().catch(handle); };
 $('nextPage').onclick = () => { page++; loadApplications().catch(handle); };
 $('closeDetail').onclick = () => $('detailDialog').close();
@@ -322,25 +250,23 @@ $('cancelDecision').onclick = () => $('confirmDialog').close();
 $('confirmDecision').onclick = confirmDecision;
 $('detailDialog').addEventListener('close', () => { const frame = $('documentPreview'); if (frame) frame.src = 'about:blank'; releasePreview(); detail = null; });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') closeMenu();
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
   if ($('detailDialog').open && !$('confirmDialog').open && !typing && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) step(e.key === 'ArrowRight' ? 1 : -1).catch(handle);
   if (e.key === 'Enter' && e.target.matches?.('tr[data-open]')) openDetail(e.target.dataset.open).catch(handle);
 });
 document.addEventListener('click', async e => {
   const open = e.target.closest('[data-open]'), preview = e.target.closest('[data-preview]'), download = e.target.closest('[data-download]'),
-    stage = e.target.closest('[data-stage]'), resolve = e.target.closest('[data-resolve]'), goto = e.target.closest('[data-goto]');
+    resolve = e.target.closest('[data-resolve]'), goto = e.target.closest('[data-goto]');
   try {
     if (goto) return await navigate(goto.dataset.goto);
-    if (e.target.closest('[data-attention]')) { await navigate('pending'); queue = 'attention'; document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c.dataset.queue === 'attention')); return reload(); }
+    if (e.target.closest('[data-attention]')) { await navigate('pending'); queue = 'attention'; return reload(); }
     if (open && !$('detailDialog').contains(open)) return await openDetail(open.dataset.open);
     if (preview) await previewDocument(preview.dataset.preview);
     if (download) downloadFile(await documentFile(download.dataset.download));
-    if (stage) { await api('setReviewStatus', detail.application.id, detail.application.version, stage.dataset.stage); await openDetail(detail.application.id); await loadApplications(); toast('Etapa actualizada.'); }
     if (e.target.closest('[data-ack]')) { await api('acknowledgeIssues', detail.application.id, detail.application.version); await openDetail(detail.application.id); await loadApplications(); toast('Alertas marcadas como revisadas.'); }
-    if (e.target.id === 'renewCorrection') { await api('renewCorrection', detail.application.id); await openDetail(detail.application.id); toast('Nuevo enlace generado; el correo quedó en cola.'); }
+    if (e.target.id === 'renewCorrection') { await api('renewCorrection', detail.application.id); await openDetail(detail.application.id); toast('Nuevo enlace enviado a la cola de correos.'); }
     if (resolve) {
-      const note = prompt(resolve.dataset.resolution === 'REQUEUE' ? 'Tras comprobar que el mensaje no fue enviado, describa la verificación. Reintentar puede duplicarlo si ya fue aceptado.' : 'Describa cómo comprobó que el mensaje fue enviado.');
+      const note = prompt(resolve.dataset.resolution === 'REQUEUE' ? 'Describa cómo comprobó que el correo no llegó. Reintentar puede duplicarlo.' : 'Describa cómo comprobó que el correo fue enviado.');
       if (note) { await api('resolveEmail', resolve.dataset.resolve, resolve.dataset.resolution, note); await loadEmails(); }
     }
   } catch (error) { handle(error); }
@@ -350,14 +276,6 @@ $('export').onclick = async () => {
   try { const result = await api('exportExcel', filters()); downloadFile(result); toast(`Excel descargado: ${result.count} solicitudes.`); }
   catch (e) { handle(e); } finally { button.disabled = false; }
 };
-$('settingsForm').onsubmit = async e => {
-  e.preventDefault();
-  try {
-    await api('updateSettings', {emailEnabled:$('emailEnabled').checked, receiptEnabled:$('receiptEnabled').checked, domains:$('domains').value});
-    boot.emailEnabled = $('emailEnabled').checked; $('pausedBanner').classList.toggle('hidden', boot.emailEnabled); toast('Configuración guardada.');
-  } catch (error) { handle(error); }
-};
-$('healthRefresh').onclick = () => loadHealth().catch(handle);
 if (window.UMA_REMOTE) window.UMA_REMOTE.start(init); else init().catch(handle);
 })();
 </script>
