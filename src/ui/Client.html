@@ -75,6 +75,35 @@ function choices(id, values) {
   while ($(id).options.length > 1) $(id).remove(1);
   values.forEach(v => { const o = document.createElement('option'); o.value = v; o.textContent = labels[v] || v; $(id).append(o); });
 }
+/* ---------- Live refresh ---------- */
+const AUTO_REFRESH_MS = 60000;
+let lastUpdated = 0, lastToReview = null, refreshing = false, newWorkNotice = '';
+function markUpdated() { lastUpdated = Date.now(); renderUpdated(); }
+function renderUpdated() {
+  if (!lastUpdated) return;
+  const s = Math.round((Date.now() - lastUpdated) / 1000);
+  $('lastUpdated').innerHTML = '<span class="live-dot" aria-hidden="true"></span>' + (s < 10 ? 'Actualizado ahora' : s < 60 ? `Actualizado hace ${s} s` : `Actualizado hace ${Math.floor(s / 60)} min`);
+}
+function noticeNewWork(s) {
+  const now = s.toReview ?? s.pending;
+  if (lastToReview !== null && now > lastToReview) { newWorkNotice = `${now - lastToReview === 1 ? 'Llegó 1 solicitud nueva' : 'Llegaron ' + (now - lastToReview) + ' solicitudes nuevas'} por revisar.`; toast(newWorkNotice); }
+  lastToReview = now;
+}
+/** Reloads the current tab. Silent mode is used by the timer: no skeleton, no error toasts. */
+async function refreshNow(silent = false) {
+  if (refreshing) return; refreshing = true;
+  try { if (view === 'emails') await loadEmails(); else await loadApplications(); }
+  catch (e) { if (!silent) throw e; }
+  finally { refreshing = false; }
+}
+function canAutoRefresh() {
+  const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+  return document.visibilityState === 'visible' && !document.querySelector('dialog[open]') && busyCount === 0 && !typing
+    && !$('workspaceApp')?.hasAttribute?.('inert') && boot;
+}
+setInterval(() => { renderUpdated(); if (lastUpdated && Date.now() - lastUpdated >= AUTO_REFRESH_MS && canAutoRefresh()) refreshNow(true); }, 1000);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && lastUpdated && Date.now() - lastUpdated > 15000 && canAutoRefresh()) refreshNow(true); });
+
 function renderCounts(s) {
   $('navPending').textContent = s.pending;
   $('navApplied').textContent = s.applied; $('navTotal').textContent = s.total;
@@ -105,7 +134,7 @@ async function loadApplications() {
   if (request !== listRequest) return;
   if (!result.rows.length && page > 1 && result.total) { page = Math.max(1, Math.ceil(result.total / PAGE_SIZE)); return loadApplications(); }
   total = result.total; ids = result.ids || result.rows.map(r => r.id);
-  renderCounts(result.stats);
+  renderCounts(result.stats); noticeNewWork(result.stats); markUpdated();
   $('applicationRows').innerHTML = result.rows.length ? result.rows.map(applicationRow).join('') : `<tr><td colspan="6" class="empty"><strong>No hay solicitudes aquí</strong>${result.stats.total ? 'Pruebe otra pestaña o cambie los filtros.' : 'Las respuestas del formulario de estudiantes aparecerán automáticamente.'}</td></tr>`;
   $('paginationText').textContent = total ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} de ${total}` : '';
   $('prevPage').disabled = page <= 1; $('nextPage').disabled = page * PAGE_SIZE >= total;
@@ -355,7 +384,7 @@ function showEmailResult(email, saved) {
 let emailCache = [];
 async function loadEmails() {
   if (!$('emailRows').children.length) $('emailRows').innerHTML = skeletonRows(6, 5);
-  emailCache = await api('listEmails');
+  emailCache = await api('listEmails'); markUpdated();
   renderEmails();
 }
 function renderEmails() {
@@ -384,7 +413,7 @@ async function init() {
 }
 const reload = () => { page = 1; updateClearButton(); loadApplications().catch(handle); };
 $('navigation').onclick = e => { const tab = e.target.closest('[data-view]'); if (tab) navigate(tab.dataset.view).catch(handle); };
-$('refresh').onclick = e => withButton(e.currentTarget, () => navigate(view)).catch(handle);
+$('refreshAll').onclick = async e => { try { newWorkNotice = ''; await withButton(e.currentTarget, () => refreshNow(false)); toast(newWorkNotice || 'Datos actualizados.'); } catch (error) { handle(error); } };
 $('filters').onsubmit = e => { e.preventDefault(); reload(); };
 $('search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(reload, 300); };
 ['statusFilter','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).onchange = reload);
@@ -393,7 +422,6 @@ $('queueChips').onclick = e => { const chip = e.target.closest('[data-queue]'); 
 $('mailFilters').onsubmit = e => e.preventDefault();
 ['mailSearch','mailType','mailStatus','mailFrom','mailTo'].forEach(id => $(id).addEventListener(id === 'mailSearch' ? 'input' : 'change', renderEmails));
 $('clearMailFilters').onclick = () => { ['mailSearch','mailType','mailStatus','mailFrom','mailTo'].forEach(id => $(id).value = ''); renderEmails(); };
-$('refreshMails').onclick = e => withButton(e.currentTarget, loadEmails).catch(handle);
 $('viewerPrev').onclick = () => viewerStep(-1);
 $('viewerNext').onclick = () => viewerStep(1);
 $('viewerClose').onclick = () => $('viewerDialog').close();

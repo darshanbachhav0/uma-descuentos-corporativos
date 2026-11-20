@@ -6,7 +6,7 @@
 <div class="app">
   <header class="topbar">
     <div class="brand"><img src="<?!= include_('Logo'); ?>" alt="Universidad María Auxiliadora" width="112" height="52"><span class="divider" aria-hidden="true"></span><div class="brand-text"><strong>Descuentos corporativos</strong><span>Área de Tesorería · Periodo <span id="period">2027-I</span></span></div></div>
-    <div class="account"><span class="avatar" id="avatar" aria-hidden="true">T</span><span class="account-name" id="actor">…</span><button id="logoutManagement" class="button ghost" type="button">Cerrar sesión</button></div>
+    <div class="account"><span class="updated" id="lastUpdated" aria-live="polite"></span><button id="refreshAll" class="button outline" type="button" title="Actualizar ahora"><span class="ui-icon" data-icon="refresh"></span><span class="label">Actualizar</span></button><span class="avatar" id="avatar" aria-hidden="true">T</span><span class="account-name" id="actor">…</span><button id="logoutManagement" class="button ghost" type="button">Cerrar sesión</button></div>
   </header>
   <nav id="navigation" class="tabs" aria-label="Solicitudes">
     <button class="tab active" data-view="pending" aria-current="page">Pendientes <span class="count" id="navPending">0</span></button>
@@ -30,7 +30,6 @@
         <label class="date">Hasta <input id="toFilter" type="date"></label>
         <button type="button" id="clearFilters" class="link hidden">Limpiar filtros</button>
         <span class="spacer"></span>
-        <button type="button" id="refresh" class="button icon-only" aria-label="Actualizar" title="Actualizar"><span class="ui-icon" data-icon="refresh"></span></button>
         <button type="button" id="export" class="button outline"><span class="ui-icon" data-icon="download"></span>Exportar Excel</button>
       </form>
       <div class="table-wrap"><table class="apps"><thead><tr><th>Estudiante</th><th>Correo institucional</th><th>Convenio</th><th class="num">Envíos</th><th>Último envío</th><th>Estado</th></tr></thead><tbody id="applicationRows"></tbody></table></div>
@@ -45,7 +44,6 @@
         <label class="date">Hasta <input id="mailTo" type="date"></label>
         <button type="button" id="clearMailFilters" class="link hidden">Limpiar filtros</button>
         <span class="spacer"></span>
-        <button type="button" id="refreshMails" class="button icon-only" aria-label="Actualizar" title="Actualizar"><span class="ui-icon" data-icon="refresh"></span></button>
       </form>
       <p class="hint pad">“Aceptado por Google” significa que Google aceptó el envío; no confirma que llegó al buzón. Si no llega, pida al estudiante revisar Spam y Promociones.</p>
       <div class="table-wrap"><table class="mails"><thead><tr><th>Solicitud</th><th>Destinatario</th><th>Tipo</th><th>Fecha</th><th>Estado</th><th></th></tr></thead><tbody id="emailRows"></tbody></table></div>
