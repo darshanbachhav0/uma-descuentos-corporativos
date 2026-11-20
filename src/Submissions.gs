@@ -112,6 +112,7 @@ function reconcileSubmissions(e) {
   owner_(e,'reconcileSubmissions');var cfg=config_(),p=properties_();
   locked_(recoverDecisions_);
   if(p.getProperty('DATA_MODEL')!=='email-v2')locked_(migrateToEmailGrouping_);
+  if(p.getProperty('STATUS_MODEL')!=='v2')locked_(migrateRetiredStatus_);
   [false,true].forEach(function(correction){
     var key=correction?'CORRECTION_FORM_ID':'GOOGLE_FORM_ID',cursorKey='CURSOR_'+key;
     var since=Number(p.getProperty(cursorKey)||0),cutoff=Date.now();
@@ -154,6 +155,13 @@ function regroupSubmissionsByEmail(){
     rows_('Eventos').filter(function(e){return e.formId===formId&&e.status!=='DONE';}).sort(function(a,b){return String(a.timestamp).localeCompare(String(b.timestamp));}).slice(0,30).forEach(function(e){try{ingest_(FormApp.openById(formId).getResponse(e.responseId),correction);}catch(_){}});
   });
   return rows_('Eventos').filter(function(e){return e.status!=='DONE';}).map(function(e){return {key:e.key,error:e.error};});
+}
+/** One-time upgrade: the "Validada, pendiente SIGU" status was removed; those cases go back to En revisión. */
+function migrateRetiredStatus_(){
+  rows_('Solicitudes').filter(function(a){return a.status==='VALIDADA_PENDIENTE_SIGU';}).forEach(function(a){
+    transition_(a,'EN_REVISION',UMA.owner,'Estado "Validada, pendiente SIGU" retirado del sistema','RETIRED_STATUS:'+a.id);saveApplication_(a);
+  });
+  properties_().setProperty('STATUS_MODEL','v2');
 }
 function retryFailedEvent(key){
   owner_();var event=find_('Eventos','key',key);assert_(event&&event.status!=='DONE','No hay un evento pendiente');

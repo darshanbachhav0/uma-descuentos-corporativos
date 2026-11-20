@@ -4,7 +4,9 @@ var UMA = Object.freeze({
   discounts: ['Familiar', 'PNP', 'San Hilarión', 'FED-CUT', 'Liderman', 'Emphost', 'El Tumi', 'Boticas Perú', 'Otro'],
   schools: ['Administración y Marketing','Administración y Negocios Internacionales','Contabilidad y Finanzas','Derecho','Enfermería','Farmacia y Bioquímica','Ingeniería de Inteligencia Artificial','Medicina Humana','Nutrición y Dietética','Psicología','Tecnología Médica en Laboratorio Clínico y Anatomía Patológica','Tecnología Médica en Terapia Física y Rehabilitación','Tecnología Médica en Optometría','Ingeniería Industrial'],
   categories: ['Ficha socioeconómica incompleta','Falta firma del estudiante','Documento ilegible','Falta documento sustentatorio','Datos incorrectos','Documento no corresponde','Información incompleta','Otro'],
-  states: ['RECIBIDA','EN_REVISION','OBSERVADA','CORRECCION_RECIBIDA','VALIDADA_PENDIENTE_SIGU','APLICADA_SIGU'],
+  states: ['RECIBIDA','EN_REVISION','OBSERVADA','CORRECCION_RECIBIDA','APLICADA_SIGU'],
+  // Retired status: existing rows are moved to EN_REVISION by migrateRetiredStatus_; kept in the groups below
+  // only so such rows still count as pending until the migration runs.
   // An application stays pending (observed included) until the discount is applied in SIGU.
   pendingStates: ['RECIBIDA','EN_REVISION','OBSERVADA','CORRECCION_RECIBIDA','VALIDADA_PENDIENTE_SIGU'],
   // Treasury must act on these; OBSERVADA waits for the student.

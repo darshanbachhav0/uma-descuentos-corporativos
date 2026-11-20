@@ -354,7 +354,7 @@ const $ = id => document.getElementById(id);
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const labels = {
   RECIBIDA:'Recibida', EN_REVISION:'En revisión', OBSERVADA:'Observada', CORRECCION_RECIBIDA:'Corrección recibida',
-  VALIDADA_PENDIENTE_SIGU:'Validada, pendiente SIGU', APLICADA_SIGU:'Aplicada en SIGU',
+  VALIDADA_PENDIENTE_SIGU:'En revisión', APLICADA_SIGU:'Aplicada en SIGU',
   PENDING:'En cola', SENDING:'Enviando', SENT:'Aceptado por Google', UNCERTAIN:'Requiere comprobación', CANCELLED:'Reemplazado',
   DONE:'Procesado', ERROR:'Con error', PROCESSING:'Procesando'
 };
@@ -617,16 +617,35 @@ async function step(offset) {
   const next = ids[ids.indexOf(detail?.application?.id) + offset];
   if (next) await openDetail(next);
 }
+const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID() : Array.from(crypto.getRandomValues(new Uint8Array(16)), b => b.toString(16).padStart(2, '0')).join(''));
+/** Draft of the decision form, so it survives a reload of the case. */
+function decisionDraft() {
+  const form = $('reviewForm'); if (!form) return null;
+  return {decision:form.dataset.decision || '', siguConfirmed:$('siguConfirmed').checked, siguReference:$('siguReference').value, category:$('category').value, observation:$('observation').value};
+}
+function restoreDraft(draft) {
+  const form = $('reviewForm'); if (!form || !draft || !draft.decision) return;
+  form.querySelector(`[data-choice="${draft.decision}"]`)?.click();
+  $('siguConfirmed').checked = draft.siguConfirmed; $('siguReference').value = draft.siguReference;
+  $('category').value = draft.category; $('observation').value = draft.observation;
+}
 function prepareDecision(event) {
   event.preventDefault();
+  try { openConfirm(); } catch (error) { handle(error); }
+}
+function openConfirm() {
   const a = detail.application, choice = $('reviewForm').dataset.decision;
   if (!choice) return toast('Elija Aprobar u Observar.', true);
   if (choice === 'APPROVED' && !$('siguConfirmed').checked) return toast('Confirme que el descuento está registrado en SIGU.', true);
   if (choice === 'OBSERVED' && (!$('category').value || $('observation').value.trim().length < 10)) return toast('Elija un motivo y escriba la observación (mínimo 10 caracteres).', true);
-  pendingDecision = {requestId:crypto.randomUUID(), id:a.id, version:a.version, decision:choice, siguConfirmed:$('siguConfirmed').checked, siguReference:$('siguReference').value, category:$('category').value, observation:$('observation').value};
+  pendingDecision = {requestId:newRequestId(), id:a.id, version:a.version, decision:choice, siguConfirmed:$('siguConfirmed').checked, siguReference:$('siguReference').value, category:$('category').value, observation:$('observation').value};
   $('confirmTitle').textContent = choice === 'APPROVED' ? 'Aprobar solicitud' : 'Observar solicitud';
   $('confirmText').textContent = `${a.name} (${a.id}). Se enviará un correo a ${a.recipient}.`;
-  $('confirmDialog').showModal();
+  // Always start from a clean dialog: no earlier error or disabled button can block this decision.
+  setConfirmBusy(false); $('confirmError').classList.add('hidden'); $('confirmError').textContent = '';
+  $('confirmDecision').textContent = choice === 'APPROVED' ? 'Aprobar y notificar' : 'Enviar observación';
+  if (!$('confirmDialog').open) $('confirmDialog').showModal();
+  $('confirmDecision').focus();
 }
 function setConfirmBusy(busy) {
   $('confirmDecision').classList.toggle('is-loading', busy); $('confirmDecision').disabled = busy; $('cancelDecision').disabled = busy;
@@ -643,9 +662,15 @@ async function confirmDecision() {
     // Keep the dialog open and say exactly what happened; the same requestId makes a retry safe.
     setConfirmBusy(false);
     const message = friendly(e);
-    $('confirmError').textContent = /cambió|Actualice/i.test(message) ? 'La solicitud cambió mientras la revisaba (por ejemplo, llegó un nuevo envío). Cierre este mensaje: se mostrarán los datos actualizados.' : message;
-    $('confirmError').classList.remove('hidden');
-    if (/cambió|Actualice/i.test(message)) { $('confirmDecision').disabled = true; $('cancelDecision').onclick = async () => { $('confirmDialog').close(); $('cancelDecision').onclick = () => $('confirmDialog').close(); await openDetail(id).catch(handle); }; }
+    if (/cambió|Actualice/i.test(message)) {
+      // The case changed (e.g. a new submission arrived): reload it, keep the reviewer's text, ask to send again.
+      const draft = decisionDraft();
+      $('confirmDialog').close(); pendingDecision = null;
+      try { await openDetail(id); restoreDraft(draft); toast('La solicitud se actualizó mientras la revisaba. Revise los datos y vuelva a enviar; su texto se conservó.', true); }
+      catch (error) { handle(error); }
+      return;
+    }
+    $('confirmError').textContent = message; $('confirmError').classList.remove('hidden');
     return;
   }
   setConfirmBusy(false);

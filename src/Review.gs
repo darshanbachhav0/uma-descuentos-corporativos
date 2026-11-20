@@ -40,7 +40,7 @@ function applyDecision_(j) {
 }
 function recoverDecisions_(){rows_('Decisiones').filter(function(j){return j.status==='PENDING';}).slice(0,20).forEach(function(j){try{applyDecision_(j);}catch(e){j.error=e.message;put_('Decisiones',j);error_('DECISION_RECOVERY',j.key,e);}});}
 function setReviewStatus(id,version,status) {
-  var actor=reviewer_();assert_(['EN_REVISION','VALIDADA_PENDIENTE_SIGU'].indexOf(status)>=0,'Estado inválido');
+  var actor=reviewer_();assert_(status==='EN_REVISION','Estado inválido');
   return locked_(function(){var a=application_(id);assert_(Number(a.version)===Number(version),'Actualice el expediente');assert_(['RECIBIDA','EN_REVISION','CORRECCION_RECIBIDA','VALIDADA_PENDIENTE_SIGU'].indexOf(a.status)>=0,'Transición no permitida');
     assert_(!a.processingError&&!rows_('Eventos').some(function(event){return event.applicationId===id&&event.status!=='DONE';}),'Espere el procesamiento de los documentos');
     assert_(!rows_('Decisiones').some(function(j){return j.applicationId===id&&j.status==='PENDING';}),'Decisión pendiente de recuperación');

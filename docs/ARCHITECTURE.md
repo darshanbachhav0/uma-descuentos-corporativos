@@ -50,7 +50,7 @@ Los IDs usan una secuencia persistida bajo `LockService`. El evento se identific
 
 ## Estados
 
-`RECIBIDA → EN_REVISION → VALIDADA_PENDIENTE_SIGU → APLICADA_SIGU` representa un flujo posible. Los pasos de revisión intermedios son opcionales. La aprobación siempre exige confirmar el registro real en SIGU.
+`RECIBIDA → EN_REVISION → APLICADA_SIGU` representa un flujo posible. El estado `VALIDADA_PENDIENTE_SIGU` se retiró; `migrateRetiredStatus_` mueve los casos existentes a `EN_REVISION`. Los pasos de revisión intermedios son opcionales. La aprobación siempre exige confirmar el registro real en SIGU.
 
 `OBSERVADA → CORRECCION_RECIBIDA` conserva el expediente y los documentos anteriores. El enlace de subsanación contiene un token HMAC ligado al expediente, a la revisión de observación y al vencimiento. El estudiante vuelve a ingresar correo institucional y documento. No se depende de que editar una respuesta anterior vuelva a ejecutar disparadores.
 
