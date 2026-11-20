@@ -31,6 +31,8 @@ En Google, configure `FRONTEND_ORIGINS` con el origen exacto del sitio Render, p
 7. Verifique por HTTP la página de Tesorería, Estudiantes, archivos JS/CSS, configuración y PDF. Compruebe que `Code.gs`, credenciales y documentos de estudiantes no se publican.
 8. Complete la prueba autenticada contra Google y un envío real de Forms antes de declarar listo el flujo completo.
 
-Cuando se crea un servicio directamente por CLI, el Blueprint queda como configuración reproducible, pero no se aplica automáticamente. Añada las cabeceras/rutas de `render.yaml` al servicio o aplique el Blueprint de forma controlada. El HTML y los enlaces también funcionan con sus rutas de archivo explícitas (`/index.html` y `/estudiantes.html`).
+Cuando se crea un servicio directamente por CLI, el Blueprint queda como configuración reproducible, pero no se aplica automáticamente. En este despliegue las cabeceras y rutas ya se aplicaron mediante `scripts/configure-render.py`, que usa en memoria la autorización existente del CLI, verifica el workspace y el servicio y no imprime credenciales. Requiere PyYAML solo en el equipo de despliegue. Los enlaces también funcionan con sus rutas de archivo explícitas (`/index.html` y `/estudiantes.html`).
+
+Ejecute `node scripts/verify-deployment.mjs` para verificar las páginas públicas, cabeceras, assets, hash del PDF original y respuesta 404 de archivos privados. Esa comprobación es independiente de las pruebas autenticadas de Google.
 
 La cuenta de Render y la de envío previstas son darshanbachhavapp@gmail.com. La autorización de Render no concede acceso a Google: cada proveedor tiene su consentimiento independiente.

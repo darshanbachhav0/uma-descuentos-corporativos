@@ -12,7 +12,7 @@ function initializeProject() {
     if(!c.CORRECTION_FORM_ID)p.setProperty('CORRECTION_FORM_ID',createForm_(true).getId());
     c=config_();
     [['GOOGLE_FORM_ID',false],['CORRECTION_FORM_ID',true]].forEach(function(pair){
-      var form=FormApp.openById(c[pair[0]]); if(!form.getDestinationId())form.setDestination(FormApp.DestinationType.SPREADSHEET,c.SPREADSHEET_ID);
+      var form=FormApp.openById(c[pair[0]]);linkResponseDestination_(form,c.SPREADSHEET_ID);
       mapQuestions_(form,pair[1]);
     });
     audit_(UMA.owner,'INITIALIZED','','Recursos creados o conservados');
@@ -25,13 +25,15 @@ function setupSpreadsheet_() {
   Object.keys(UMA.schema).forEach(function(name){
     var s=ss.getSheetByName(name)||ss.insertSheet(name),h=UMA.schema[name];
     if(s.getMaxColumns()<h.length)s.insertColumnsAfter(s.getMaxColumns(),h.length-s.getMaxColumns());
-    if(s.getLastRow()===0)s.getRange(1,1,1,h.length).setValues([h]);
+    var layoutNeeded=s.getLastRow()===0;
+    if(layoutNeeded)s.getRange(1,1,1,h.length).setValues([h]);
     else {
       var existing=s.getRange(1,1,1,s.getLastColumn()).getValues()[0];
       assert_(existing.every(function(value,index){return value&&existing.indexOf(value)===index;}),'Encabezados vacíos o duplicados: '+name);
       var missing=h.filter(function(k){return existing.indexOf(k)<0;});
-      if(missing.length){var needed=existing.length+missing.length;if(s.getMaxColumns()<needed)s.insertColumnsAfter(s.getMaxColumns(),needed-s.getMaxColumns());s.getRange(1,existing.length+1,1,missing.length).setValues([missing]);}
+      if(missing.length){layoutNeeded=true;var needed=existing.length+missing.length;if(s.getMaxColumns()<needed)s.insertColumnsAfter(s.getMaxColumns(),needed-s.getMaxColumns());s.getRange(1,existing.length+1,1,missing.length).setValues([missing]);}
     }
+    if(!layoutNeeded)return;
     s.setFrozenRows(1);s.getRange(1,1,1,s.getLastColumn()).setBackground('#692572').setFontColor('#ffffff').setFontWeight('bold');
     s.setColumnWidths(1,s.getLastColumn(),180);
     if(!s.getFilter())s.getRange(1,1,Math.max(s.getLastRow(),2),s.getLastColumn()).createFilter();
@@ -43,6 +45,12 @@ function setupSpreadsheet_() {
     SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('OBSERVADA').setBackground('#fff1d7').setRanges([s.getRange(2,col,s.getMaxRows()-1)]).build()
   ]);
   ['ACADEMIC_PERIOD','EMAIL_NOTIFICATION_ENABLED','INSTITUTIONAL_EMAIL_DOMAINS'].forEach(function(k){put_('Configuracion',{key:k,value:config_()[k]});});
+}
+function linkResponseDestination_(form,spreadsheetId){
+  var destination='';
+  try{destination=form.getDestinationId();}catch(error){assert_(/no response destination/i.test(error.message),error.message);}
+  if(destination)assert_(destination===spreadsheetId,'El formulario ya tiene otro destino de respuestas. Revíselo antes de cambiarlo.');
+  else form.setDestination(FormApp.DestinationType.SPREADSHEET,spreadsheetId);
 }
 function createForm_(correction) {
   var f=FormApp.create(correction?'SUBSANACIÓN DE DESCUENTO CORPORATIVO — UMA':'SOLICITUD DE DESCUENTO CORPORATIVO — UMA');
@@ -64,7 +72,7 @@ function createForm_(correction) {
   }
   f.addSectionHeaderItem().setTitle('Ficha Socioeconómica 2027-I').setHelpText('Descargue el PDF original, llénelo MANUALMENTE, fírmelo y adjunte un escaneo o fotografía legible en PDF/JPG/PNG. El enlace de descarga se configura antes de publicar.');
   f.addCheckboxItem().setTitle(UMA.labels.signed).setChoiceValues(['Confirmo que la ficha está completa y firmada']).setRequired(true);
-  f.addCheckboxItem().setTitle(UMA.labels.consent).setHelpText('Sus datos y documentos serán revisados por Tesorería para gestionar esta solicitud. Consulte a UMA sobre el tratamiento, conservación y ejercicio de sus derechos. Texto pendiente de revisión institucional antes de publicar.').setChoiceValues(['He leído el aviso de privacidad de UMA']).setRequired(true);
+  f.addCheckboxItem().setTitle(UMA.labels.consent).setHelpText(privacyNotice_()).setChoiceValues(['He leído el aviso de privacidad de UMA']).setRequired(true);
   return f;
 }
 function mapQuestions_(form, correction) {
@@ -76,7 +84,8 @@ function finalizeSetup() {
   owner_();var c=config_();assert_(c.TEMPLATE_PDF_FILE_ID,'Configure TEMPLATE_PDF_FILE_ID con el PDF original');
   var pdf=DriveApp.getFileById(c.TEMPLATE_PDF_FILE_ID);assert_(pdf.getMimeType()==='application/pdf','La ficha original debe ser PDF');
   ['GOOGLE_FORM_ID','CORRECTION_FORM_ID'].forEach(function(k){
-    var f=FormApp.openById(c[k]);mapQuestions_(f,k==='CORRECTION_FORM_ID');
+    var f=FormApp.openById(c[k]),map=mapQuestions_(f,k==='CORRECTION_FORM_ID');
+    if(map.consent)f.getItemById(Number(map.consent)).asCheckboxItem().setHelpText(privacyNotice_());
     var download=c.TEMPLATE_PDF_URL||'https://drive.google.com/uc?export=download&id='+encodeURIComponent(pdf.getId());
     f.getItems(FormApp.ItemType.SECTION_HEADER).forEach(function(i){if(i.getTitle()==='Ficha Socioeconómica 2027-I')i.asSectionHeaderItem().setHelpText('DESCARGAR FICHA SOCIOECONÓMICA 2027-I: '+download+'\nLlénela MANUALMENTE, firme y cargue el PDF/JPG/PNG. Desde el celular use fotografías claras de todas las páginas.');});
   });
@@ -113,9 +122,11 @@ function configureWorkspace(input){
   return locked_(function(){
     var p=properties_(),c=config_();assert_(c.ROOT_DRIVE_FOLDER_ID,'Inicialice los recursos primero');
     p.setProperty('FRONTEND_ORIGINS',input.origin);p.setProperty('TEMPLATE_PDF_URL',input.origin+'/ficha-socioeconomica-2027-I.pdf');
-    if(input.template){
-      assert_(typeof input.template.data==='string'&&input.template.data.length<7*1024*1024,'Archivo demasiado grande');
-      var bytes=Utilities.base64Decode(input.template.data);assert_(bytes.length>=5&&String.fromCharCode.apply(null,bytes.slice(0,5))==='%PDF-','El archivo no es PDF');
+    if(input.template||!c.TEMPLATE_PDF_FILE_ID){
+      var bytes;
+      if(input.template){assert_(typeof input.template.data==='string'&&input.template.data.length<7*1024*1024,'Archivo demasiado grande');bytes=Utilities.base64Decode(input.template.data);}
+      else {var response=UrlFetchApp.fetch(input.origin+'/ficha-socioeconomica-2027-I.pdf',{muteHttpExceptions:true});assert_(response.getResponseCode()===200,'No se pudo importar el PDF original publicado en Render');bytes=response.getBlob().getBytes();}
+      assert_(bytes.length>=5&&bytes.length<=5*1024*1024&&String.fromCharCode.apply(null,bytes.slice(0,5))==='%PDF-','El archivo no es un PDF válido de hasta 5 MB');
       var folder=restrictedFolder_(DriveApp.getFolderById(c.ROOT_DRIVE_FOLDER_ID),'Plantilla_original');
       var file=folder.createFile(Utilities.newBlob(bytes,'application/pdf','Ficha_Socioeconomica_2027-I_original.pdf'));
       file.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.NONE);p.setProperty('TEMPLATE_PDF_FILE_ID',file.getId());
@@ -125,3 +136,4 @@ function configureWorkspace(input){
   });
 }
 function allowedOriginInput_(origin){return typeof origin==='string'&&/^https:\/\/[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d+)?$/i.test(origin);}
+function privacyNotice_(){return config_().PRIVACY_NOTICE||'Sus datos y documentos serán revisados por el Área de Tesorería de la Universidad María Auxiliadora para gestionar esta solicitud de descuento corporativo. Los documentos se mantienen con acceso restringido al personal autorizado. Consulte a UMA sobre el tratamiento, conservación de sus datos y ejercicio de sus derechos.';}

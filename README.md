@@ -2,6 +2,8 @@
 
 Sistema implementado para Google Forms → Apps Script → Google Sheets/Drive, con sitio estático en **Render**, panel de Tesorería en español y notificaciones enviadas exclusivamente bajo la autorización de **darshanbachhavapp@gmail.com**.
 
+Despliegue activo: [Tesorería](https://uma-descuentos-corporativos.onrender.com/) · [Portal de estudiantes](https://uma-descuentos-corporativos.onrender.com/estudiantes) · [Google Sheets](https://docs.google.com/spreadsheets/d/1MUgKljFRYaYOlv9gHdnnOlZ-kgEIDYAuHDm9O6hpcnQ/edit). Tesorería y los documentos requieren autorización de Google; el sitio público no contiene expedientes. Consulte el [estado verificado](docs/DEPLOYMENT_STATUS.md).
+
 ## Empezar
 
 ```powershell
