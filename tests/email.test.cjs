@@ -71,3 +71,12 @@ test('observed notification keeps its secure correction token, observation text 
   assert.equal(textFromHtml(mail.htmlBody),mail.body);
   assert.ok(mail.body.startsWith(s.ctx.observedEmail_(observed,link).body+'\n\n---\n'));
 });
+
+test('a delivery problem after the decision is saved is reported, not raised',()=>{
+  const s=createSystem(),id=s.ctx.ingest_(s.response('bad-recipient',s.valid()),false),a=s.ctx.application_(id);
+  const original=s.ctx.sendQueued_;s.ctx.sendQueued_=()=>{throw new Error('Destinatario de cola inválido');};
+  const result=s.ctx.saveDecision({requestId:'decision-bad-recipient',id,version:a.version,decision:'APPROVED',siguConfirmed:true});
+  s.ctx.sendQueued_=original;
+  assert.equal(s.ctx.application_(id).status,'APLICADA_SIGU');
+  assert.equal(result.email.status,'PENDING');assert.match(result.email.error,/cola/);
+});

@@ -8,7 +8,7 @@
   const show=message=>{const el=document.getElementById('connectionMessage');el.textContent=message;if(el.classList)el.classList.toggle('loading',/…$/.test(message));};
   const readToken=()=>{try{return sessionStorage.getItem(storageKey)||null;}catch{return null;}};
   const saveToken=token=>{state.token=token;try{if(token)sessionStorage.setItem(storageKey,token);else sessionStorage.removeItem(storageKey);}catch{}};
-  const showLogin=message=>{document.getElementById('connectionGate').classList.remove('hidden');document.getElementById('workspaceApp').setAttribute('inert','');show(message);};
+  const showLogin=message=>{if(document.querySelectorAll)document.querySelectorAll('dialog[open]').forEach(d=>d.close());document.getElementById('connectionGate').classList.remove('hidden');document.getElementById('workspaceApp').setAttribute('inert','');show(message);};
   const validApi=value=>{try{const u=new URL(value);return u.protocol==='https:'&&/^[a-z0-9-]+\.onrender\.com$/.test(u.hostname)&&!u.port&&u.pathname==='/'&&!u.search&&!u.hash;}catch{return false;}};
   async function configuration(){
     if(state.config)return state.config;

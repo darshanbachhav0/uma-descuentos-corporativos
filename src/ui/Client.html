@@ -37,11 +37,23 @@ function skeletonRows(columns, count = 6) {
   return Array.from({length:count}, () => `<tr class="loading-row">${Array.from({length:columns}, (_, i) => cell(i)).join('')}</tr>`).join('');
 }
 
+/* Toasts use the popover top layer so they stay visible above open dialogs. */
 function toast(message, error = false) {
-  $('toast').textContent = message; $('toast').className = 'toast' + (error ? ' error' : '');
-  clearTimeout(toast.timer); toast.timer = setTimeout(() => $('toast').classList.add('hidden'), error ? 8000 : 4000);
+  const t = $('toast');
+  t.textContent = message; t.className = 'toast' + (error ? ' error' : '');
+  if (t.showPopover) { try { if (t.matches(':popover-open')) t.hidePopover(); t.showPopover(); } catch {} }
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => { t.classList.add('hidden'); try { if (t.hidePopover && t.matches(':popover-open')) t.hidePopover(); } catch {} }, error ? 9000 : 4500);
 }
-function handle(error) { toast(error.message || String(error), true); }
+/** Turns technical server errors into instructions a reviewer can act on. */
+function friendly(error) {
+  const text = String(error?.message || error || '');
+  if (/lock|Lock timeout|bloqueo/i.test(text)) return 'El sistema está ocupado procesando otros envíos. Espere unos segundos y vuelva a intentarlo.';
+  if (/tardó demasiado|no respondió/i.test(text)) return 'El servicio tardó en responder. Revise la solicitud antes de reintentar: la decisión pudo haberse guardado.';
+  if (/Failed to fetch|NetworkError|Load failed/i.test(text)) return 'Sin conexión con el servicio. Revise su conexión a internet y vuelva a intentarlo.';
+  return text.replace(/^Error:\s*/, '') || 'No se pudo completar la acción.';
+}
+function handle(error) { toast(friendly(error), true); }
 
 async function api(method, ...args) {
   if (++busyCount === 1) $('progress').classList.remove('hidden');
@@ -93,6 +105,7 @@ async function loadApplications() {
   try { result = await api('listApplications', filters(), page, PAGE_SIZE); }
   finally { if (request === listRequest) $('applicationRows').style.opacity = ''; }
   if (request !== listRequest) return;
+  if (!result.rows.length && page > 1 && result.total) { page = Math.max(1, Math.ceil(result.total / PAGE_SIZE)); return loadApplications(); }
   total = result.total; ids = result.ids || result.rows.map(r => r.id);
   renderCounts(result.stats);
   $('applicationRows').innerHTML = result.rows.length ? result.rows.map(applicationRow).join('') : `<tr><td colspan="6" class="empty"><strong>No hay solicitudes aquí</strong>${result.stats.total ? 'Pruebe otra pestaña o cambie los filtros.' : 'Las respuestas del formulario de estudiantes aparecerán automáticamente.'}</td></tr>`;
@@ -192,6 +205,7 @@ function decisionPanel(a) {
   if (a.status === 'APLICADA_SIGU') return '<p class="note">El descuento ya fue aplicado en SIGU.</p>';
   if (a.status === 'OBSERVADA') return `<p class="note">Esperando la corrección del estudiante. La solicitud sigue pendiente; el enlace de corrección vence el ${date(a.correctionExpiresAt)}</p><button id="renewCorrection" class="button outline">Enviar nuevo enlace de corrección</button>`;
   if (a.processingError) return '<p class="note">La decisión está bloqueada hasta que se procesen los documentos.</p>';
+  if (!a.recipient) return '<p class="note">Esta solicitud no tiene un correo válido del estudiante, por lo que no se puede notificar ninguna decisión. Pida al estudiante que vuelva a enviar el formulario con su correo institucional correcto; el nuevo envío se añadirá a esta solicitud.</p>';
   return `<form id="reviewForm" class="decision" novalidate>
     <div class="decision-choice" role="group" aria-label="Decisión">
       <button type="button" class="choice approve" data-choice="APPROVED" aria-pressed="false"><span class="ui-icon" data-icon="check"></span>Aprobar</button>
@@ -222,7 +236,7 @@ function renderDetail() {
     <h3>Envíos del estudiante</h3><ul class="log">${submissions.map(e => `<li>Revisión ${esc(e.revision)}${e.correction ? ' · formulario de corrección' : ''} ${e.status === 'DONE' ? '' : status(e.status)}<small>${date(e.timestamp)}</small>${e.error ? `<small>${esc(e.error)}</small>` : ''}</li>`).join('') || '<li>—</li>'}</ul>
     <h3>Historial</h3><ul class="log">${history.map(h => `<li>${esc(labels[h.toStatus] || h.toStatus)}${h.detail ? ' · ' + esc(h.detail) : ''}<small>${date(h.timestamp)} · ${esc(h.reviewer)}</small></li>`).join('')}</ul>
   </section><section class="detail-right"><h2>Decisión</h2>${decisionPanel(a)}
-    <h3>Correos enviados</h3>${emails.map(m => `<div class="mail"><span><strong>${esc(emailTypes[m.type] || m.type)}</strong><small>${esc(m.recipient)} · ${date(m.sentAt || m.createdAt)}</small></span>${status(m.status)}</div>`).join('') || '<p class="hint">Aún no hay correos.</p>'}
+    <h3>Correos enviados</h3>${emails.slice().reverse().map(m => `<div class="mail"><span><strong>${esc(emailTypes[m.type] || m.type)}</strong><small>${esc(m.recipient)} · ${date(m.sentAt || m.createdAt)}</small>${m.error && m.status !== 'SENT' ? `<small class="mail-error">${esc(m.error)}</small>` : ''}</span><span class="mail-side">${status(m.status)}${m.status === 'PENDING' ? `<button class="button small" data-send-now="${esc(m.key)}">Enviar ahora</button>` : ''}</span></div>`).join('') || '<p class="hint">Aún no hay correos.</p>'}
   </section></div>`;
   wireDecision();
 }
@@ -265,16 +279,34 @@ function prepareDecision(event) {
   $('confirmText').textContent = `${a.name} (${a.id}). Se enviará un correo a ${a.recipient}.`;
   $('confirmDialog').showModal();
 }
+function setConfirmBusy(busy) {
+  $('confirmDecision').classList.toggle('is-loading', busy); $('confirmDecision').disabled = busy; $('cancelDecision').disabled = busy;
+  $('confirmStatus').classList.toggle('hidden', !busy);
+  if (busy) $('confirmError').classList.add('hidden');
+}
 async function confirmDecision() {
-  $('confirmDecision').classList.add('is-loading'); $('confirmDecision').disabled = true; $('cancelDecision').disabled = true;
+  if (!pendingDecision || $('confirmDecision').disabled) return;
+  const decision = pendingDecision, id = decision.id, position = ids.indexOf(id), approved = decision.decision === 'APPROVED';
+  setConfirmBusy(true);
+  let result;
+  try { result = await api('saveDecision', decision); }
+  catch (e) {
+    // Keep the dialog open and say exactly what happened; the same requestId makes a retry safe.
+    setConfirmBusy(false);
+    const message = friendly(e);
+    $('confirmError').textContent = /cambió|Actualice/i.test(message) ? 'La solicitud cambió mientras la revisaba (por ejemplo, llegó un nuevo envío). Cierre este mensaje: se mostrarán los datos actualizados.' : message;
+    $('confirmError').classList.remove('hidden');
+    if (/cambió|Actualice/i.test(message)) { $('confirmDecision').disabled = true; $('cancelDecision').onclick = async () => { $('confirmDialog').close(); $('cancelDecision').onclick = () => $('confirmDialog').close(); await openDetail(id).catch(handle); }; }
+    return;
+  }
+  setConfirmBusy(false);
+  $('confirmDialog').close(); pendingDecision = null;
+  const [choice] = await Promise.all([showEmailResult(result.email, approved ? 'Aprobación guardada' : 'Observación guardada'), loadApplications().catch(handle)]);
+  if (choice === 'mails') return;
+  const next = ids.find((x, i) => i >= position && x !== id);
   try {
-    const id = pendingDecision.id, position = ids.indexOf(id), approved = pendingDecision.decision === 'APPROVED';
-    const result = await api('saveDecision', pendingDecision);
-    $('confirmDialog').close(); pendingDecision = null;
-    await Promise.all([showEmailResult(result.email, approved ? 'Aprobación guardada' : 'Observación guardada'), loadApplications().catch(handle)]);
-    const next = ids.find((x, i) => i >= position && x !== id);
-    if (next) await openDetail(next); else { $('detailDialog').close(); toast('No quedan más solicitudes en esta vista.'); }
-  } catch (e) { handle(e); } finally { $('confirmDecision').classList.remove('is-loading'); $('confirmDecision').disabled = false; $('cancelDecision').disabled = false; }
+    if (next) await openDetail(next); else { $('detailDialog').close(); toast('Listo. No quedan más solicitudes en esta vista.'); }
+  } catch (e) { handle(e); }
 }
 
 /** Tells the reviewer plainly whether the student's email went out, and why not. Resolves when closed. */
@@ -352,6 +384,8 @@ $('prevDetail').onclick = () => step(-1).catch(handle);
 $('nextDetail').onclick = () => step(1).catch(handle);
 $('cancelDecision').onclick = () => $('confirmDialog').close();
 $('confirmDecision').onclick = confirmDecision;
+$('confirmDialog').addEventListener('cancel', e => { if ($('confirmDecision').disabled) e.preventDefault(); });
+$('confirmDialog').addEventListener('close', () => { $('confirmError').classList.add('hidden'); $('confirmStatus').classList.add('hidden'); });
 $('detailDialog').addEventListener('close', () => { if ($('viewerDialog').open) $('viewerDialog').close(); releasePreview(); detail = null; });
 document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
@@ -365,14 +399,19 @@ document.addEventListener('click', async e => {
     resolve = e.target.closest('[data-resolve]'), goto = e.target.closest('[data-goto]');
   try {
     if (goto) return await navigate(goto.dataset.goto);
-    if (e.target.closest('[data-attention]')) { await navigate('pending'); queue = 'attention'; return reload(); }
+    if (e.target.closest('[data-attention]')) { await navigate('applications'); queue = 'attention'; updateClearButton(); return reload(); }
     if (open && !$('detailDialog').contains(open)) { if ($('detailDialog').open) $('detailDialog').close(); return await openDetail(open.dataset.open); }
     if (preview) await openViewer(preview.dataset.preview);
     if (download) downloadFile(await documentFile(download.dataset.download));
     if (e.target.closest('[data-ack]')) { await withButton(e.target.closest('[data-ack]'), () => api('acknowledgeIssues', detail.application.id, detail.application.version)); await openDetail(detail.application.id); await loadApplications(); toast('Alertas marcadas como revisadas.'); }
-    if (e.target.id === 'renewCorrection') { const result = await withButton(e.target, () => api('renewCorrection', detail.application.id)); await showEmailResult(result.email, 'Nuevo enlace de corrección generado'); await openDetail(detail.application.id); }
+    if (e.target.id === 'renewCorrection') { const id = detail.application.id, result = await withButton(e.target, () => api('renewCorrection', id)); if (await showEmailResult(result.email, 'Nuevo enlace de corrección generado') !== 'mails') await openDetail(id); }
     const sendNow = e.target.closest('[data-send-now]');
-    if (sendNow) { const result = await withButton(sendNow, () => api('sendEmailNow', sendNow.dataset.sendNow)); await loadEmails(); await showEmailResult(result, 'Envío solicitado'); }
+    if (sendNow) {
+      const inCase = $('detailDialog').contains(sendNow), caseId = detail?.application?.id, result = await withButton(sendNow, () => api('sendEmailNow', sendNow.dataset.sendNow));
+      const choice = await showEmailResult(result, 'Envío solicitado');
+      if (choice === 'mails') return;
+      if (inCase && caseId) await openDetail(caseId); else await loadEmails();
+    }
     if (resolve) {
       const note = prompt(resolve.dataset.resolution === 'REQUEUE' ? 'Describa cómo comprobó que el correo no llegó. Reintentar puede duplicarlo.' : 'Describa cómo comprobó que el correo fue enviado.');
       if (note) { await api('resolveEmail', resolve.dataset.resolve, resolve.dataset.resolution, note); await loadEmails(); }

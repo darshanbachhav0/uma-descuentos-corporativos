@@ -71,6 +71,10 @@ function sendQueued_(m,a){
  * Caller holds the script lock.
  */
 function sendNow_(key){
+  // Never throws: the decision is already saved, so a delivery problem must be reported, not raised.
+  try{return sendNowUnsafe_(key);}catch(e){error_('SEND_NOW',key,e);return {status:'PENDING',error:'No se pudo enviar ahora ('+String(e.message).slice(0,300)+'). El correo quedó en cola y se reintentará automáticamente.'};}
+}
+function sendNowUnsafe_(key){
   var m=find_('Correos','key',key);if(!m)return {status:'NONE',error:'No se generó ningún correo.'};
   var result=function(x,error){return {status:x.status,error:error||x.error||'',recipient:x.recipient,type:x.type};};
   if(m.status!=='PENDING')return result(m);

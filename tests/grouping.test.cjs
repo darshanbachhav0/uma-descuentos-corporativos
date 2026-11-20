@@ -75,3 +75,21 @@ test('filters and statistics use Lima dates, not UTC dates',()=>{
   assert.equal(c.filtered_(rows,{from:'2026-11-20',to:'2026-11-20'}).length,1);
   assert.equal(c.statistics_(rows,[]).byDay['2026-11-20'],1);
 });
+
+test('a decision for a case without a valid student email is rejected before anything is written',()=>{
+  const s=createSystem(),a=submit(s,'no-email',{institutionalEmail:'bad',personalEmail:''});
+  assert.equal(a.recipient,'');
+  assert.throws(()=>s.ctx.saveDecision({requestId:'no-recipient-1',id:a.id,version:a.version,decision:'APPROVED',siguConfirmed:true}),/correo v/);
+  assert.equal(s.db.Decisiones.length,0);assert.equal(s.db.Historial_Estados.filter(h=>h.toStatus==='APLICADA_SIGU').length,0);
+  assert.equal(s.ctx.application_(a.id).status,'RECIBIDA');
+});
+
+test('a journal stuck by a missing recipient is closed and no longer blocks the case',()=>{
+  const s=createSystem(),a=submit(s,'stuck',{institutionalEmail:'bad',personalEmail:''});
+  s.db.Decisiones.push({key:'DECISION:old-stuck',applicationId:a.id,reviewer:'darshanbachhavapp@gmail.com',payload:JSON.stringify({decision:'APPROVED',version:a.version,siguConfirmed:true}),status:'PENDING',timestamp:new Date().toISOString()});
+  s.ctx.processEmailQueue();
+  assert.equal(s.db.Decisiones[0].status,'CANCELLED');
+  const fixed=submit(s,'stuck-fixed',{institutionalEmail:'bad',personalEmail:'student.ok@example.com'});
+  const result=s.ctx.saveDecision({requestId:'after-fix-0001',id:fixed.id,version:fixed.version,decision:'APPROVED',siguConfirmed:true});
+  assert.equal(result.status,'APLICADA_SIGU');assert.equal(result.email.status,'SENT');
+});

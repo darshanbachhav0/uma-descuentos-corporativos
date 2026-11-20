@@ -63,7 +63,7 @@ function validateDecision_(a, d) {
 function filtered_(rows, f) {
   f=f||{}; var q=String(f.query||'').toLowerCase().trim();
   return rows.filter(function(a){
-    var day=limaDate_(a.createdAt);
+    var day=limaDate_(a.lastSubmissionAt||a.createdAt);
     return (!q || [a.id,a.name,a.identityNumber,a.institutionalEmail,a.personalEmail].join(' ').toLowerCase().indexOf(q)>=0) &&
       (!f.status || a.status===f.status) && (!f.discount || a.discount===f.discount) &&
       (!f.school || a.school===f.school) &&
