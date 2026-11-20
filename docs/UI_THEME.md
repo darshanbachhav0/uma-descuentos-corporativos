@@ -2,6 +2,8 @@
 
 Rediseño de interfaz: 20 de noviembre de 2026.
 
+Actualización posterior de acceso: el panel presenta únicamente Usuario, Contraseña e Ingresar, con Cerrar sesión dentro del panel. Se retiraron las opciones de conexión con Google y el portal estudiantil adicional; los estudiantes reciben directamente Google Forms. La ficha original y la revisión de expedientes se mantienen.
+
 El logotipo es el archivo `umalogo1 (1).jpg` proporcionado por el usuario, copiado sin alterar a `src/assets/uma-logo.jpg` (814 × 378). Se mantiene su proporción y su fondo original. El PDF socioeconómico se conserva sin cambios.
 
 La interfaz usa rosa UMA `#e91953`, carbón `#20242d`, blanco y grises neutros. El color principal se define en `src/ui/Styles.html` mediante `--brand`; las variantes públicas están en `web/site.css`. Los correos y encabezados de Excel comparten el rosa UMA. Los estados conservan colores semánticos y etiquetas de texto.

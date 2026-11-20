@@ -2,7 +2,7 @@
 
 Sistema implementado para Google Forms → Apps Script → Google Sheets/Drive, con sitio estático en **Render**, panel de Tesorería en español y notificaciones enviadas exclusivamente bajo la autorización de **darshanbachhavapp@gmail.com**.
 
-Despliegue activo: [Tesorería](https://uma-descuentos-corporativos.onrender.com/) · [Portal de estudiantes](https://uma-descuentos-corporativos.onrender.com/estudiantes) · [Google Sheets](https://docs.google.com/spreadsheets/d/1MUgKljFRYaYOlv9gHdnnOlZ-kgEIDYAuHDm9O6hpcnQ/edit). Tesorería usa usuario y contraseña; los documentos se revisan y descargan dentro del panel. Sheets y Drive directos siguen siendo recursos privados del propietario. Consulte el [estado verificado](docs/DEPLOYMENT_STATUS.md).
+Despliegue activo: [Tesorería](https://uma-descuentos-corporativos.onrender.com/) · [Formulario de estudiantes](https://docs.google.com/forms/d/e/1FAIpQLSctyzIVBLHoGM49EmwZ_DWoCzena7yeQijPKxjr5uCj75d7mw/viewform) · [Google Sheets](https://docs.google.com/spreadsheets/d/1MUgKljFRYaYOlv9gHdnnOlZ-kgEIDYAuHDm9O6hpcnQ/edit). Tesorería usa usuario y contraseña; los documentos se revisan y descargan dentro del panel. Sheets y Drive directos siguen siendo recursos privados del propietario. Consulte el [estado verificado](docs/DEPLOYMENT_STATUS.md).
 
 La [identidad visual](docs/UI_THEME.md) usa el logotipo oficial proporcionado por el usuario, rosa UMA, carbón y blanco, con un panel adaptable de Tesorería. A estudiantes se les entrega únicamente el enlace de Google Forms. Consulte la [guía de enlaces y uso](docs/QUICK_START.md).
 

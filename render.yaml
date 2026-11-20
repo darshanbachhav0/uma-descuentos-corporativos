@@ -28,3 +28,6 @@ services:
       - path: /config.json
         name: Cache-Control
         value: no-store
+      - path: /uma-logo.jpg
+        name: Cache-Control
+        value: public, max-age=300, no-transform
