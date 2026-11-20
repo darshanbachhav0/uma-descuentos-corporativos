@@ -12,8 +12,8 @@ function queueDecisionEmail_(a,type,decisionKey) {
   append_('Correos',{key:key,applicationId:a.id,decisionKey:decisionKey,type:type,recipient:a.recipient,subject:message.subject,body:message.body,status:'PENDING',attempts:0,createdAt:now_()});
 }
 function mailHtml_(body) {
-  var escaped=escapeHtml_(body).replace(/https:\/\/[^\s<]+/g,function(url){return '<a style="color:#692572" href="'+url+'">'+url+'</a>';}).replace(/\n/g,'<br>');
-  return '<div style="font:16px Arial,sans-serif;color:#252735;max-width:640px;margin:auto"><div style="background:#692572;color:white;padding:24px;font-size:24px;font-weight:bold">UMA <span style="font-size:14px">Universidad María Auxiliadora</span></div><div style="padding:28px;border:1px solid #e6e2ea">'+escaped+'</div><p style="font-size:12px;color:#666">Área de Tesorería · Notificación de solicitud de descuento corporativo</p></div>';
+  var escaped=escapeHtml_(body).replace(/https:\/\/[^\s<]+/g,function(url){return '<a style="color:#e91953" href="'+url+'">'+url+'</a>';}).replace(/\n/g,'<br>');
+  return '<div style="font:16px Arial,sans-serif;color:#252735;max-width:640px;margin:auto"><div style="background:#e91953;color:white;padding:24px;font-size:24px;font-weight:bold">UMA <span style="font-size:14px">Universidad María Auxiliadora</span></div><div style="padding:28px;border:1px solid #e6e2ea">'+escaped+'</div><p style="font-size:12px;color:#666">Área de Tesorería · Notificación de solicitud de descuento corporativo</p></div>';
 }
 /** Install this time-driven trigger while signed in as UMA.owner. */
 function processEmailQueue(e) {

@@ -4,6 +4,8 @@ Sistema implementado para Google Forms → Apps Script → Google Sheets/Drive, 
 
 Despliegue activo: [Tesorería](https://uma-descuentos-corporativos.onrender.com/) · [Portal de estudiantes](https://uma-descuentos-corporativos.onrender.com/estudiantes) · [Google Sheets](https://docs.google.com/spreadsheets/d/1MUgKljFRYaYOlv9gHdnnOlZ-kgEIDYAuHDm9O6hpcnQ/edit). Tesorería y los documentos requieren autorización de Google; el sitio público no contiene expedientes. Consulte el [estado verificado](docs/DEPLOYMENT_STATUS.md).
 
+La [identidad visual](docs/UI_THEME.md) usa el logotipo oficial proporcionado por el usuario, rosa UMA, carbón y blanco, con diseños adaptables para estudiantes y Tesorería.
+
 ## Empezar
 
 ```powershell
@@ -45,7 +47,7 @@ El archivo **`dist/Code.gs` contiene todo el backend, el panel y el logotipo**, 
 | --- | --- |
 | `src/*.gs` | Configuración, validación, persistencia, formularios, archivos, revisión, correos, API y Excel |
 | `src/ui/` | Panel HTML, estilos y cliente conectado a `google.script.run` |
-| `src/assets/uma-logo.jpg` | Logotipo extraído sin modificar del PDF de referencia |
+| `src/assets/uma-logo.jpg` | Logotipo oficial proporcionado por el usuario, conservado sin modificar |
 | `dist/` | Proyecto de Apps Script compilado y manifiesto |
 | `web/`, `web-dist/` | Fuentes y salida separada del sitio estático de Render |
 | `render.yaml`, `deploy/` | Configuración reproducible de Render y URLs públicas de conexión |

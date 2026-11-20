@@ -15,7 +15,7 @@ Registro actualizado: 20 de noviembre de 2026 (America/Lima).
 
 - Cuenta propietaria y remitente autorizado: **darshanbachhavapp@gmail.com**. El destinatario se obtiene de cada solicitud; no hay destinatario estudiantil fijo.
 - Render: **Bachhav Darshan's Workspace**, servicio `srv-dbvpg7l9fdbs73bju90g`, repositorio privado `darshanbachhav0/uma-descuentos-corporativos`. El despliegue inicial se observó en estado `live`; las actualizaciones de main se despliegan automáticamente.
-- Apps Script: proyecto `1TiZZM47BuA-iPRfS09rcD22BoFUNIUqTeu3lwS9VhbR1OT9rnTWJBVIa`, versión **5**, despliegue estable publicado como usuario que accede. El origen exacto de Render está autorizado.
+- Apps Script: proyecto `1TiZZM47BuA-iPRfS09rcD22BoFUNIUqTeu3lwS9VhbR1OT9rnTWJBVIa`, versión **6**, despliegue estable publicado como usuario que accede. El origen exacto de Render está autorizado.
 - Inicialización real de Google Sheets, carpetas privadas y ambos formularios completada. Copia privada de la ficha original creada desde el PDF publicado, cuyo hash coincide con el documento de referencia.
 - Cuatro preguntas nativas de carga creadas en la interfaz de Google Forms: ficha firmada y documentos sustentatorios en cada formulario. Son obligatorias, admiten PDF/imagen y hasta cinco archivos de 10 MB por pregunta; el backend restringe a PDF/JPG/PNG y diez archivos en total.
 - Formulario inicial y formulario de subsanación publicados y aceptando respuestas. El formulario inicial conserva los datos personales, 14 escuelas, nueve convenios y la especificación obligatoria de Otro. La ficha se descarga y completa manualmente.
@@ -25,6 +25,7 @@ Registro actualizado: 20 de noviembre de 2026 (America/Lima).
 - Exportación `.xlsx` real ejecutada para el registro vacío. Auditoría comprobada: `EXCEL_EXPORTED`, cero solicitudes; sin errores registrados. Los enlaces con expedientes poblados están cubiertos por las pruebas locales y requieren comprobación con datos reales.
 - Cabeceras de seguridad y rutas de `render.yaml` aplicadas por API. La verificación HTTP comprueba páginas, assets, enlaces públicos, hash del PDF y respuesta 404 de archivos privados.
 - **35 pruebas locales aprobadas**, además de compilación y comprobación de sintaxis/contratos. Los despliegues de Render ejecutan estas mismas comprobaciones y pruebas.
+- Interfaz renovada con el logotipo proporcionado por el usuario, rosa UMA, navegación oscura y pantallas adaptables de Tesorería, revisión, acceso y estudiantes. Se comprobaron los controles y las vistas de escritorio y móvil; detalles en [UI_THEME.md](UI_THEME.md).
 
 Los identificadores de recursos públicos del despliegue están en `deploy/resources.json`; la configuración pública compilada está en `deploy/public-config.json`. Ninguno contiene credenciales.
 

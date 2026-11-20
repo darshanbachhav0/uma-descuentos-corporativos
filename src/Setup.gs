@@ -34,7 +34,7 @@ function setupSpreadsheet_() {
       if(missing.length){layoutNeeded=true;var needed=existing.length+missing.length;if(s.getMaxColumns()<needed)s.insertColumnsAfter(s.getMaxColumns(),needed-s.getMaxColumns());s.getRange(1,existing.length+1,1,missing.length).setValues([missing]);}
     }
     if(!layoutNeeded)return;
-    s.setFrozenRows(1);s.getRange(1,1,1,s.getLastColumn()).setBackground('#692572').setFontColor('#ffffff').setFontWeight('bold');
+    s.setFrozenRows(1);s.getRange(1,1,1,s.getLastColumn()).setBackground('#e91953').setFontColor('#ffffff').setFontWeight('bold');
     s.setColumnWidths(1,s.getLastColumn(),180);
     if(!s.getFilter())s.getRange(1,1,Math.max(s.getLastRow(),2),s.getLastColumn()).createFilter();
     if(!s.getProtections(SpreadsheetApp.ProtectionType.SHEET).length)s.protect().setDescription('UMA: editar mediante el sistema').setWarningOnly(true);
