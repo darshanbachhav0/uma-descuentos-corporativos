@@ -34,7 +34,14 @@ Si un estudiante envía el formulario después de la aplicación en SIGU, la sol
 
 ## Documentos en Google Drive
 
-Cada solicitud tiene una carpeta `Código · correo institucional` dentro de la carpeta del periodo. Cada envío crea una subcarpeta `Revisión N · AAAA-MM-DD HH.MM` (hora de Lima) con archivos como `Ficha socioeconómica 1 · AAAA-MM-DD HH.MM.pdf`. En el panel, cada revisión muestra la fecha y hora de envío y la más reciente aparece primero.
+Cada solicitud tiene una carpeta `Código · correo institucional` dentro de la carpeta del periodo. Cada envío crea una subcarpeta `Revisión N · AAAA-MM-DD HH.MM` (hora de Lima) con los archivos nombrados `Estudiante_Convenio_Periodo_Tipo`, por ejemplo:
+
+- `Ana Pérez Ruiz_PNP_2027-I_Fichasocioeconomica.pdf`
+- `Ana Pérez Ruiz_PNP_2027-I_Documento-sustentatorio.pdf`
+
+Se usa el nombre y el convenio que el estudiante envió en ese formulario (si eligió “Otro”, el convenio que escribió). Si un envío trae más de un archivo del mismo tipo, el segundo termina en `_2`, el tercero en `_3`, etc. El mismo nombre aparece en el panel, en las descargas, en el Excel exportado y en los enlaces de la hoja **Respuestas de estudiantes**. En el panel, cada revisión muestra la fecha y hora de envío y la más reciente aparece primero.
+
+Los documentos copiados antes de esta regla se renombran solos (una vez, en los 10 minutos siguientes a publicar la versión). Para hacerlo al instante, el propietario ejecuta `renameDocumentFiles` en Apps Script.
 
 ## Acceso a los documentos desde otras cuentas
 

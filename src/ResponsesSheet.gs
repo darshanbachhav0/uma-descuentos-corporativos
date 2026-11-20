@@ -39,7 +39,7 @@ function submissionCell_(item) {
   var lines = ['Revisión ' + item.revision + ' · ' + limaText_(item.at)], links = [];
   if (!item.docs.length) lines.push('(sin documentos)');
   item.docs.forEach(function(d){
-    var label = (d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Documento sustentatorio');
+    var label = String(d.name || (d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Documento sustentatorio')).replace(/\.(pdf|jpg|png)$/i, '');
     var start = lines.join('\n').length + 1; lines.push(label); links.push([start, start + label.length, d.url]);
   });
   var builder = SpreadsheetApp.newRichTextValue().setText(lines.join('\n'));
