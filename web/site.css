@@ -18,3 +18,10 @@ body:has(#connectionGate:not(.hidden)){overflow:hidden}
 .form-redirect h1{font-size:20px}
 .form-redirect p{color:#6b7280}
 @media(max-width:480px){.connection-card{padding:22px 18px}.form-redirect{margin:16px}}
+.connection-message.success{color:#157347;background:#e8f5ee;border:1px solid #bfe3cd;border-radius:8px;padding:10px 12px}
+.connection-message.success:before{content:'\2713';font-weight:700}
+.logout-overlay{position:fixed;inset:0;z-index:120;display:grid;place-items:center;background:#20242dcc;backdrop-filter:blur(3px);animation:fade .15s ease-out;padding:20px}
+.logout-card{display:flex;flex-direction:column;align-items:center;gap:8px;background:#fff;border-top:4px solid #e91953;border-radius:14px;padding:28px 36px;box-shadow:0 20px 60px #0004;text-align:center;width:min(360px,100%)}
+.logout-card strong{font-size:17px;color:#20242d}
+.logout-card span:last-child{font-size:13px;color:#6b7280}
+.logout-spinner{width:34px;height:34px;border:3px solid #e91953;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite;margin-bottom:6px}
