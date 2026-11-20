@@ -58,7 +58,6 @@ function validateDecision_(a, d) {
   else {
     assert_(UMA.categories.indexOf(d.category)>=0,'Seleccione una observación');
     assert_(cleanText_(d.observation).length>=10,'Describa la observación (mínimo 10 caracteres)');
-    assert_(cleanText_(d.instructions).length>=10,'Indique cómo subsanar (mínimo 10 caracteres)');
   }
 }
 function filtered_(rows, f) {

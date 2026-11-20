@@ -3,8 +3,8 @@ function exportExcel(filter) {
   var temp=SpreadsheetApp.create('UMA export temporal '+Utilities.getUuid()),file;
   try{
     var sheet=temp.getSheets()[0];sheet.setName('Solicitudes');
-    var fields=['id','createdAt','period','name','identityType','identityNumber','institutionalEmail','personalEmail','school','discount','otherDiscount','status','revision','reviewer','reviewedAt','siguConfirmedAt','siguReference','category','observation','instructions','emailStatus','submissions','lastSubmissionAt','issues','folderUrl'];
-    var headers=['Código','Fecha de envío','Periodo','Estudiante','Tipo documento','Número documento','Correo institucional','Correo personal','Escuela','Convenio','Otro convenio','Estado','Revisión','Revisor','Fecha revisión','SIGU confirmado','Referencia SIGU','Categoría observación','Observación','Instrucciones','Estado correo','Envíos','Último envío','Alertas','Carpeta de documentos'];
+    var fields=['id','createdAt','period','name','identityType','identityNumber','institutionalEmail','personalEmail','school','discount','otherDiscount','status','revision','reviewer','reviewedAt','siguConfirmedAt','siguReference','category','observation','emailStatus','submissions','lastSubmissionAt','issues','folderUrl'];
+    var headers=['Código','Fecha de envío','Periodo','Estudiante','Tipo documento','Número documento','Correo institucional','Correo personal','Escuela','Convenio','Otro convenio','Estado','Revisión','Revisor','Fecha revisión','SIGU confirmado','Referencia SIGU','Categoría observación','Observación','Estado correo','Envíos','Último envío','Alertas','Carpeta de documentos'];
     sheet.getRange(1,1,1,headers.length).setValues([headers]);
     if(apps.length){sheet.getRange(2,1,apps.length,fields.length).setNumberFormat('@').setValues(apps.map(function(a){return fields.map(function(k){return sheetValue_(a[k]);});}));
       // One batched write per column instead of one call per row keeps large exports fast.

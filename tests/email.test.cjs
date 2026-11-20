@@ -61,12 +61,12 @@ test('HTML escapes untrusted content and preserves complete correction URLs and 
   for(const match of html.matchAll(/<a[^>]*href="([^"]+)"[^>]*>([^<]+)<\/a>/g))assert.equal(match[1],match[2]);
 });
 
-test('observed notification keeps its secure correction token, instructions and matching HTML content',()=>{
+test('observed notification keeps its secure correction token, observation text and matching HTML content',()=>{
   const s=createSystem(),id=s.ctx.ingest_(s.response('observed-email',s.valid()),false),a=s.ctx.application_(id);
-  s.ctx.saveDecision({requestId:'observed-email-decision',id,version:a.version,decision:'OBSERVED',category:'Falta firma del estudiante',observation:'La ficha no tiene firma.',instructions:'Firme la ficha y vuelva a adjuntarla.'});
+  s.ctx.saveDecision({requestId:'observed-email-decision',id,version:a.version,decision:'OBSERVED',category:'Falta firma del estudiante',observation:'La ficha no tiene firma. Fírmela y vuelva a adjuntarla.'});
   const observed=s.ctx.application_(id),link=s.ctx.correctionUrl_(observed);
   s.ctx.processEmailQueue();const mail=s.sent[0];
-  assert.ok(mail.body.includes(link));assert.ok(mail.body.includes('Firme la ficha y vuelva a adjuntarla.'));
+  assert.ok(mail.body.includes(link));assert.ok(mail.body.includes('Fírmela y vuelva a adjuntarla.'));assert.ok(!/Instrucciones/.test(mail.body));
   assert.ok(mail.body.includes(observed.correctionExpiresAt.slice(0,10)));
   assert.equal(textFromHtml(mail.htmlBody),mail.body);
   assert.ok(mail.body.startsWith(s.ctx.observedEmail_(observed,link).body+'\n\n---\n'));
