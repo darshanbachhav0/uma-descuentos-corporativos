@@ -2,12 +2,11 @@
 
 ```mermaid
 flowchart LR
-  S[Estudiante] --> W[Sitio estático en Render]
-  W --> F[Google Forms]
+  S[Estudiante] --> F[Google Forms]
+  R[Tesorería] --> W[Render: usuario y contraseña]
   F --> T[Disparador de darshanbachhavapp@gmail.com]
   T --> D[Drive privado con revisiones]
   T --> B[Google Sheets]
-  R[Tesorería] --> W
   W <-->|Canal restringido por origen y nonce| G[Apps Script HTML Service]
   G --> B
   G --> Q[Cola de correos]
@@ -18,13 +17,15 @@ flowchart LR
 
 Render publica exclusivamente `web-dist/`: HTML, CSS, JavaScript, configuración pública, logotipo y el PDF vacío. No almacena solicitudes, tokens de Google, claves de subsanación ni copias de documentos de estudiantes. `dist/` es un artefacto separado destinado a Apps Script y nunca es la carpeta de publicación de Render.
 
-El backend de Apps Script se despliega ejecutando **como usuario que accede**. La identidad del revisor proviene de `Session.getActiveUser()`, nunca de un email enviado por JavaScript. La lista de revisores se comprueba en cada función de datos o revisión. Los emails se envían mediante un disparador creado por el propietario; el proceso comprueba además `Session.getEffectiveUser()` antes de llamar a MailApp.
+El backend de Apps Script ejecuta **como propietario** y permite acceso anónimo al servicio web. El panel exige su propia autenticación: el servidor verifica la prueba PBKDF2, crea una sesión opaca y comprueba esa sesión en cada llamada. La identidad de gestión procede del registro de sesión del servidor, no de un nombre o email suministrado con la decisión. Los emails se envían mediante un disparador creado por el propietario; el proceso comprueba además `Session.getEffectiveUser()` antes de llamar a MailApp.
 
 ## Canal del sitio estático
 
-`google.script.run` solo existe en páginas HTML Service. El sitio externo carga un pequeño puente de Apps Script en un iframe. El puente se habilita únicamente para los orígenes HTTPS exactos de `FRONTEND_ORIGINS`. El sitio crea un nonce aleatorio de 256 bits, espera una respuesta de un origen Google válido, fija la ventana emisora y cruza mensajes únicamente con esa ventana, origen y nonce. El puente acepta mensajes exclusivamente de la ventana superior y del origen configurado. Solo doce operaciones de negocio están permitidas; no hay evaluación de código ni despacho a nombres arbitrarios.
+`google.script.run` solo existe en páginas HTML Service. El sitio externo carga un pequeño puente de Apps Script en un iframe. El puente se habilita únicamente para los orígenes HTTPS exactos de `FRONTEND_ORIGINS`. El sitio crea un nonce aleatorio de 256 bits, espera una respuesta de un origen Google válido, fija la ventana emisora y cruza mensajes únicamente con esa ventana, origen y nonce. El puente acepta mensajes exclusivamente de la ventana superior y del origen configurado. Solo las operaciones enumeradas en la lista permitida están habilitadas; no hay evaluación de código ni despacho a nombres arbitrarios.
 
-La cuenta de Google debe estar autenticada y haber autorizado la aplicación. Algunos navegadores bloquean sesiones dentro de iframes. El botón de conexión abre el panel de Google en una pestaña propia para autorizarlo; si el bloqueo de cookies persiste, ese mismo panel proporciona toda la funcionalidad sin el puente. No se pide desactivar protecciones del navegador.
+El visitante no necesita una sesión de Google: el iframe sirve anónimamente y la autorización de datos se comprueba con el token propio. El token se guarda en sessionStorage, nunca en URLs ni logs. Al cerrar sesión se elimina de la caché del servidor y del navegador. Las contraseñas no se guardan en el sitio estático.
+
+Las vistas previas, descargas de documentos y exportaciones XLSX se entregan por la misma sesión autenticada. Los archivos se conservan privados en Drive. Los enlaces del Excel abren el expediente o documento en el panel. Los estudiantes reciben directamente Google Forms; `/estudiantes` redirige a ese formulario.
 
 ## Persistencia y recuperación
 

@@ -9,6 +9,11 @@ import os
 import urllib.request
 import urllib.error
 import yaml
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--update-existing', action='store_true', help='Apply reviewed header value changes, preserving other rules.')
+options = parser.parse_args()
 
 resources = json.loads(Path('deploy/resources.json').read_text(encoding='utf-8'))
 config_dir = Path(os.environ.get('RENDER_CLI_CONFIG_DIR', Path.home() / '.render'))
@@ -42,14 +47,21 @@ if service.get('type') != 'static_site':
 definition = yaml.safe_load(Path('render.yaml').read_text(encoding='utf-8'))['services'][0]
 headers = request('GET', '/headers?limit=100')
 existing_headers = [row.get('headers', row.get('header', row)) for row in headers]
+header_changes = False
 for header in definition.get('headers', []):
     current = next((h for h in existing_headers if h.get('path') == header['path'] and h.get('name', '').lower() == header['name'].lower()), None)
     if current:
         if current.get('value') != header['value']:
-            raise SystemExit('An existing header differs; review before replacing it: ' + header['name'])
+            if not options.update_existing:
+                raise SystemExit('An existing header differs; review before replacing it: ' + header['name'])
+            current['value'] = header['value']
+            header_changes = True
     else:
         request('POST', '/headers', header)
+        existing_headers.append(dict(header))
     print('Verified header:', header['name'])
+if header_changes:
+    request('PUT', '/headers', [{key: rule[key] for key in ('path', 'name', 'value')} for rule in existing_headers])
 existing_routes = [row.get('route', row) for row in request('GET', '/routes?limit=100')]
 routes = [{key: route[key] for key in ('type', 'source', 'destination')} for route in existing_routes]
 for route in definition.get('routes', []):

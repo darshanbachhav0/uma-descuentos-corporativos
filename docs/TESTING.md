@@ -14,16 +14,18 @@ La compilación genera el backend y el sitio estático por separado. La comproba
 
 Se cubren creación de expedientes, ceros iniciales en identidad, formato de correo, dominios, DNI, Otro convenio, neutralización de fórmulas, copias privadas, eventos duplicados, documentos repetidos, recuperación tras errores de Drive/Sheets, confirmación SIGU y versión esperada, mensajes personalizados, cola del propietario, pausas y cuotas, resultados de correo inciertos, observaciones, revisiones de subsanación, tokens inválidos/vencidos/ajenos, recuperación de decisiones, accesos no autorizados, eventos falsificados, escape HTML, filtros y estadísticas.
 
-También se comprueban orígenes exactos, rechazo de funciones arbitrarias en el puente, identidad de revisor, nonce y ventana emisora del canal, URLs de despliegue y conservación byte a byte del PDF original publicado. Estas pruebas no acreditan permisos reales, envío al buzón ni comportamiento de cookies del navegador.
+También se comprueban orígenes exactos, rechazo de funciones arbitrarias en el puente, sesiones propias de gestión, expiración, revocación, límite de intentos, entrega privada de documentos, nonce y ventana emisora del canal, URLs de despliegue y conservación byte a byte del PDF original publicado. Estas pruebas no acreditan permisos reales, envío al buzón ni comportamiento de cookies del navegador.
 
 ## Prueba real de Google y Render
 
 | Paso | Resultado que debe observarse |
 | --- | --- |
-| Abrir sitio Render por HTTPS | Cargan el acceso de Tesorería y la página Estudiantes; no hay datos ficticios |
+| Abrir sitio Render por HTTPS | Carga el formulario Usuario/Contraseña. Estudiantes redirige a Google Forms; no hay datos ficticios |
 | Descargar PDF vacío | Mismo PDF original, completo, legible, sin respuestas |
-| Abrir el panel con cuenta ajena | Acceso restringido; ninguna solicitud visible |
-| Autorizar al propietario | Acceso al panel y a configuración; identidad correcta |
+| Abrir el panel sin sesión | No se entregan registros ni archivos; no hay botón Google |
+| Contraseña incorrecta | Rechazo sin datos |
+| Usuario y contraseña correctos | Panel operativo, identidad de gestión correcta |
+| Cerrar sesión | Token revocado; no se pueden repetir llamadas de datos |
 | Inicializar recursos | Se generan libro, carpetas privadas y dos formularios cerrados |
 | Configurar cargas | Dos preguntas nativas por formulario; PDF/imagen, límites y obligatoriedad |
 | Verificar enlace del PDF como estudiante | Descarga pública solo de la ficha vacía |

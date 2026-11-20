@@ -69,22 +69,22 @@ No use disparadores de edición de celdas para enviar correos. No instale duplic
 
 ## 6. Acceso de Tesorería
 
-Por defecto el propietario es el único revisor. En Script Properties, `AUTHORIZED_REVIEWERS` admite correos separados por comas. Primero pruebe el sistema solo con el propietario.
+El panel de Render usa un único usuario y contraseña de gestión. Los revisores no necesitan autorizar Google ni recibir acceso directo a Drive/Sheets. El backend trabaja con la cuenta propietaria. No comparta los recursos de Google con estudiantes.
 
-Para revisores adicionales que sean personal de confianza, comparta el libro operativo y la carpeta raíz como editores y el formulario inicial como editor (la pantalla inicial obtiene su URL con FormApp). El formulario de subsanación también requiere acceso de editor para generar enlaces prellenados. El panel se ejecuta como cada revisor, por lo que necesita los permisos de datos correspondientes. No es necesario darles acceso al proyecto de código ni a sus propiedades. Revise esta concesión: los editores de Forms/Sheets tienen acceso directo a esos datos, además del panel. No dé estos permisos a estudiantes. Vea [SECURITY.md](SECURITY.md).
+La contraseña no se incluye en el JavaScript público ni se compara en el navegador. El navegador deriva una prueba con PBKDF2/SHA-256 (600 000 iteraciones); el servidor comprueba su hash almacenado en Script Properties. Las sesiones duran como máximo seis horas, pueden terminar antes si Google vacía su caché y se revocan al cerrar sesión o cambiar las credenciales. Las acciones se atribuyen al usuario compartido, no a personas individuales.
 
-Las restricciones por rol del panel no sustituyen los permisos del libro. La protección de hojas es de advertencia, pues las escrituras desde Apps Script se hacen con la misma identidad del revisor. Para mantener los datos accesibles solo mediante una autoridad central, utilice únicamente la cuenta propietaria en esta versión.
+En este despliegue el acceso ya está configurado. Para una instalación nueva, después de `npm run build`, `scripts/prepare-auth-bootstrap.mjs` recibe un objeto JSON con `username` y `password` por entrada estándar. No pase contraseñas como argumentos, no las guarde en Git y no imprima ese JSON. El script introduce únicamente el verificador derivado y la sal en una compilación temporal. Despliegue esa compilación como propietario, visite una vez `/exec` para inicializar las propiedades y vuelva a ejecutar `npm run build`, subir y desplegar una versión limpia. La inicialización es de valores fijos y no acepta credenciales de peticiones HTTP; no reemplaza un acceso ya configurado. `npm run check` rechaza cualquier compilación que conserve ese bootstrap temporal.
 
-## 7. Desplegar el panel
+## 7. Desplegar el servicio
 
 1. **Deploy → New deployment → Web app**.
-2. Nombre: `UMA Tesorería 1.0`.
-3. **Execute as: User accessing the web app** (Usuario que accede). Esto es obligatorio para atribuir revisores individuales con certeza.
-4. **Who has access:** usuarios con cuenta de Google; nunca acceso anónimo. Restrinja adicionalmente al dominio si su edición de Workspace permite ese alcance. `ANYONE` del manifiesto de Apps Script significa usuario de Google; no utilice `ANYONE_ANONYMOUS`.
-5. Abra la URL `/exec` e inicie sesión con una cuenta de la lista. Cada revisor deberá autorizar los permisos.
-6. Una cuenta que no está en la lista debe ver **Acceso restringido** y no obtener datos.
+2. **Execute as: Me**, desde **darshanbachhavapp@gmail.com** (`USER_DEPLOYING`).
+3. **Who has access: Anyone** (`ANYONE_ANONYMOUS`). Esto permite abrir el servicio sin sesión Google; cada operación de gestión sigue exigiendo la sesión propia del panel.
+4. Configure en Render la URL `/exec` y en `FRONTEND_ORIGINS` el origen HTTPS exacto de Render.
+5. Abra Render: deben aparecer solamente Usuario, Contraseña e Ingresar. No deben aparecer botones de Google, registro ni recuperación.
+6. Sin sesión válida, las solicitudes, decisiones, documentos y exportaciones deben ser rechazados. Una sesión Google del propietario tampoco sustituye el usuario y contraseña del panel.
 
-No despliegue como propietario para un panel multiusuario: en una cuenta Gmail personal la identidad del visitante puede no estar disponible. El código rechaza identidades vacías. Los emails los envía el disparador del propietario, no el usuario del panel.
+La autorización OAuth del propietario sigue siendo necesaria una vez para operar Forms/Sheets/Drive/MailApp. No se pide ese consentimiento a los usuarios del panel. Los correos continúan enviándose por el disparador del propietario. La administración directa de los recursos Google conserva su autenticación de Google habitual.
 
 ## 8. Prueba real y puesta en marcha
 
@@ -104,7 +104,9 @@ Tras modificar código local: compilar, probar, pegar/subir `dist/Code.gs`, guar
 | `ROOT_DRIVE_FOLDER_ID`, `EXPORT_FOLDER_ID` | Generados; deben seguir restringidos |
 | `GOOGLE_FORM_ID`, `CORRECTION_FORM_ID` | IDs de edición, no IDs públicos `1FAIpQL…` |
 | `TEMPLATE_PDF_FILE_ID` | Manual, archivo vacío original |
-| `AUTHORIZED_REVIEWERS` | Propietario; añadir personal expresamente autorizado |
+| `MANAGEMENT_USERNAME`, `MANAGEMENT_SALT`, `MANAGEMENT_ITERATIONS`, `MANAGEMENT_VERIFIER` | Credenciales derivadas privadas del panel |
+| `MANAGEMENT_AUTH_ENABLED`, `MANAGEMENT_CREDENTIAL_VERSION` | Acceso activo e invalidación de sesiones |
+| `AUTHORIZED_REVIEWERS` | Compatibilidad de instalaciones anteriores; no sustituye la autenticación propia activa |
 | `ACADEMIC_PERIOD` | `2027-I` |
 | `INSTITUTIONAL_EMAIL_DOMAINS` | Vacío; configurar dominios reales |
 | `EMAIL_NOTIFICATION_ENABLED` | `false`; activar después de probar |

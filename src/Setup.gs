@@ -104,7 +104,7 @@ function health_() {
   try{['ROOT_DRIVE_FOLDER_ID','EXPORT_FOLDER_ID'].forEach(function(k){if(c[k])assert_(DriveApp.getFolderById(c[k]).getSharingAccess()===DriveApp.Access.PRIVATE,'Carpeta '+k+' debe estar restringida');});}catch(e){issues.push(e.message);}
   return {ready:issues.length===0,issues:issues,forms:forms,owner:UMA.owner,emailEnabled:c.EMAIL_NOTIFICATION_ENABLED==='true',triggers:ScriptApp.getProjectTriggers().map(function(t){return {handler:t.getHandlerFunction(),id:t.getUniqueId()};}),quota:MailApp.getRemainingDailyQuota(),spreadsheet:c.SPREADSHEET_ID?'https://docs.google.com/spreadsheets/d/'+c.SPREADSHEET_ID+'/edit':''};
 }
-function runSystemHealthCheck(){reviewer_(true);return health_();}
+function runSystemHealthCheck(){if(UMA_REQUEST_AUTH_)reviewer_(true);else setupOwner_();return health_();}
 function installTriggers() {
   owner_();var c=config_(),existing=ScriptApp.getProjectTriggers();
   [['onApplicationSubmit',c.GOOGLE_FORM_ID],['onCorrectionSubmit',c.CORRECTION_FORM_ID]].forEach(function(pair){

@@ -48,9 +48,11 @@ function effectiveOwner_() {
 function owner_(event, handler) {
   effectiveOwner_();
   if(event && handler)assert_(String(event.triggerUid)===properties_().getProperty('TRIGGER_'+handler),'Disparador no autorizado');
-  else reviewer_(true);
+  else setupOwner_();
 }
 function reviewer_(adminOnly) {
+  if(typeof UMA_REQUEST_AUTH_!=='undefined'&&UMA_REQUEST_AUTH_){assert_(!adminOnly||UMA_REQUEST_AUTH_.admin,'Acceso denegado');return 'gestión:'+UMA_REQUEST_AUTH_.username;}
+  assert_(config_().MANAGEMENT_AUTH_ENABLED!=='true','AUTH_REQUIRED: Inicie sesión para continuar.');
   var email = normalizeEmail_(Session.getActiveUser().getEmail());
   assert_(email, 'Google no proporcionó su identidad. Despliegue ejecutando como usuario que accede e inicie sesión.');
   var allowed = config_().AUTHORIZED_REVIEWERS.split(',').map(normalizeEmail_);

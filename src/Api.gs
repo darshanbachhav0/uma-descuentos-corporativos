@@ -1,17 +1,17 @@
 function doGet(e) {
   if(e && e.parameter && e.parameter.mode==='setup'){
-    try{reviewer_(true);return HtmlService.createTemplate(html_('Setup')).evaluate().setTitle('Configurar UMA · Google Workspace').addMetaTag('viewport','width=device-width, initial-scale=1');}catch(error){return HtmlService.createHtmlOutput('<p>Solo la cuenta propietaria puede configurar el sistema.</p>');}
+    try{setupOwner_();return HtmlService.createTemplate(html_('Setup')).evaluate().setTitle('Configurar UMA · Google Workspace').addMetaTag('viewport','width=device-width, initial-scale=1');}catch(error){return HtmlService.createHtmlOutput('<p>Solo la cuenta propietaria puede configurar el sistema.</p>');}
   }
   if(e && e.parameter && e.parameter.mode==='bridge'){
-    try{return bridgePage_(e);}catch(error){return HtmlService.createHtmlOutput('<p>Conexión no autorizada. Abra el panel de Google con una cuenta de Tesorería.</p>');}
+    try{return bridgePage_(e);}catch(error){return HtmlService.createHtmlOutput('<p>Origen de conexión no autorizado.</p>');}
   }
-  try{reviewer_();return HtmlService.createTemplate(html_('Dashboard')).evaluate().setTitle('UMA · Descuentos corporativos').addMetaTag('viewport','width=device-width, initial-scale=1');}
-  catch(e){return HtmlService.createHtmlOutput('<!doctype html><html lang="es"><meta charset="utf-8"><title>Acceso restringido</title><body style="font:18px Arial;padding:48px"><h1>UMA · Acceso restringido</h1><p>'+escapeHtml_(e.message)+'</p></body></html>');}
+  var origin=String(config_().FRONTEND_ORIGINS||'').split(',')[0];
+  return HtmlService.createHtmlOutput('<!doctype html><html lang="es"><meta charset="utf-8"><title>Tesorería UMA</title><body style="font:18px Arial;padding:48px"><h1>Tesorería UMA</h1><p><a href="'+escapeHtml_(allowedFrontend_(origin)?origin:'#')+'">Abrir plataforma de gestión</a></p></body></html>');
 }
 function html_(name){return typeof UMA_UI_!=='undefined'?UMA_UI_[name]:HtmlService.createHtmlOutputFromFile(name).getContent();}
 function include_(name){return html_(name);}
 function getBootstrap() {
-  var actor=reviewer_(),c=config_();return {actor:actor,isAdmin:actor===UMA.owner,owner:UMA.owner,period:c.ACADEMIC_PERIOD,schools:UMA.schools,discounts:UMA.discounts,categories:UMA.categories,states:UMA.states,emailEnabled:c.EMAIL_NOTIFICATION_ENABLED==='true',domains:c.INSTITUTIONAL_EMAIL_DOMAINS,spreadsheet:'https://docs.google.com/spreadsheets/d/'+c.SPREADSHEET_ID+'/edit',studentForm:FormApp.openById(c.GOOGLE_FORM_ID).getPublishedUrl()};
+  var actor=reviewer_(),c=config_();return {actor:actor,isAdmin:actor===UMA.owner||!!UMA_REQUEST_AUTH_,owner:UMA.owner,period:c.ACADEMIC_PERIOD,schools:UMA.schools,discounts:UMA.discounts,categories:UMA.categories,states:UMA.states,emailEnabled:c.EMAIL_NOTIFICATION_ENABLED==='true',domains:c.INSTITUTIONAL_EMAIL_DOMAINS,spreadsheet:'https://docs.google.com/spreadsheets/d/'+c.SPREADSHEET_ID+'/edit',studentForm:FormApp.openById(c.GOOGLE_FORM_ID).getPublishedUrl()};
 }
 function listApplications(filter,page,pageSize) {
   reviewer_();var all=rows_('Solicitudes'),selected=filtered_(all,filter),size=Math.min(100,Math.max(10,Number(pageSize)||20)),p=Math.max(1,Number(page)||1);

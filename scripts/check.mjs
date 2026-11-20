@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import vm from 'node:vm';
 const code=fs.readFileSync('dist/Code.gs','utf8');new vm.Script(code,{filename:'Code.gs'});
+if(code.includes('doGetBeforeBootstrap_'))throw new Error('Temporary management bootstrap must be removed with npm run build before publishing final source');
 const client=fs.readFileSync('src/ui/Client.html','utf8').replace(/^<script>\s*/, '').replace(/\s*<\/script>\s*$/,'');new vm.Script(client,{filename:'Client.html'});
 JSON.parse(fs.readFileSync('src/appsscript.json','utf8'));
 if(/(?:addFileUploadItem|asFileUploadItem)\s*\(/.test(code))throw new Error('Unsupported Forms file-upload API');

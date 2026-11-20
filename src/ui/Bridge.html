@@ -1,10 +1,10 @@
 <!doctype html><html lang="es"><head><meta charset="utf-8"><title>UMA · Conexión protegida</title></head><body>
-<p>Conexión de Tesorería UMA. Los permisos se comprueban en Google.</p>
+<p>Servicio de Tesorería UMA.</p>
 <script>
 (() => {
   'use strict';
   const settings = <?!= settings; ?>;
-  const allowed = new Set(['getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck']);
+  const allowed = new Set(['managementAuthParameters','loginManagement','logoutManagement','getBootstrap','listApplications','getApplication','listEmails','listAudit','updateSettings','saveDecision','setReviewStatus','renewCorrection','resolveEmail','exportExcel','runSystemHealthCheck','getDocumentFile']);
   const send = data => window.top.postMessage({umaBridge:1,channel:settings.channel,...data},settings.origin);
   let established=false;
   const hello = setInterval(()=>{if(!established)send({type:'ready'});},700);
@@ -17,7 +17,7 @@
     if(message.type!=='request' || !/^[a-f0-9-]{36}$/.test(message.id)||!allowed.has(message.method)||!Array.isArray(message.args))return;
     google.script.run.withSuccessHandler(result=>send({type:'response',id:message.id,result}))
       .withFailureHandler(error=>send({type:'response',id:message.id,error:error.message||'Error de Google'}))
-      .bridgeCall({origin:settings.origin,method:message.method,args:message.args});
+      .bridgeCall({origin:settings.origin,method:message.method,args:message.args,token:message.token});
   });
 })();
 </script></body></html>
