@@ -60,7 +60,7 @@ function ingest_(response,correction) {
       }
       var revision=Number(event.revision);
       if(!(data.values.signed&&data.values.consent))issues.push('Falta confirmación de firma o privacidad');
-      issues=issues.concat(copyDocuments_(a,data.uploads,revision,submittedAt));
+      issues=issues.concat(copyDocuments_(a,data.uploads,revision,submittedAt,info&&info.data));
       var committed=Number(a.revision)>=revision;
       if(correction){
         if(!committed){a.revision=revision;a.version=Number(a.version)+1;a.submissions=Number(a.submissions||1)+1;a.lastSubmissionAt=submittedAt;}
@@ -128,6 +128,7 @@ function reconcileSubmissions(e) {
   if(p.getProperty('STATUS_MODEL')!=='v2')locked_(migrateRetiredStatus_);
   // Whoever can open the spreadsheet can view the documents its links point to (Sharing.gs).
   try{syncDocumentAccess_(false);}catch(e){error_('DOCUMENT_ACCESS','',e);}
+  if(p.getProperty('DOCUMENT_NAMES')!=='v1')locked_(renameDocuments_);
   if(p.getProperty('EVENTS_RETRY')!=='v3')locked_(function(){rows_('Eventos').filter(function(e){return e.status!=='DONE'&&!e.applicationId;}).forEach(function(e){e.retryAt='';put_('Eventos',e);});p.setProperty('EVENTS_RETRY','v3');});
   [false,true].forEach(function(correction){
     var key=correction?'CORRECTION_FORM_ID':'GOOGLE_FORM_ID',cursorKey='CURSOR_'+key;

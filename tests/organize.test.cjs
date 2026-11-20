@@ -94,6 +94,7 @@ test('the student sheet has one row per institutional email with every submissio
   assert.equal(row[9],'Corrección recibida');assert.equal(row[10],'2');
   assert.equal(header[13],'Envío 1');assert.equal(header[14],'Envío 2');
   assert.match(row[13].text,/^Revisión 1 · 20\/11\/2026 14:33/);assert.match(row[14].text,/^Revisión 2 · 20\/11\/2026 15:07/);
-  assert.deepEqual(row[13].links.map(l=>l.text),['Ficha socioeconómica','Documento sustentatorio']);
+  assert.deepEqual(row[13].links.map(l=>l.text),['Estudiante de Prueba_PNP_2027-I_Fichasocioeconomica','Estudiante de Prueba_PNP_2027-I_Documento-sustentatorio']);
+  assert.equal(row[14].links[0].text,'Dae Fgggh_PNP_2027-I_Fichasocioeconomica');
   assert.equal(row[14].links.length,1);assert.ok(row[14].links[0].url.startsWith('https://drive.google.com/file/d/'));
 });
