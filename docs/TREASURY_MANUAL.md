@@ -46,3 +46,17 @@ El panel no tiene pantallas de configuración ni de auditoría. El propietario l
 La auditoría y los errores siguen registrándose en las hojas **Auditoria** y **Errores** de Google Sheets.
 
 Use **Cerrar sesión** al terminar. El usuario es compartido: todas las acciones se registran bajo ese nombre.
+
+## Reiniciar los datos de prueba (solo el propietario)
+
+Borra todas las solicitudes para empezar de cero. Se ejecuta desde el editor de Apps Script con la cuenta propietaria; no existe en el panel.
+
+1. Abra el proyecto de Apps Script, elija la función `previewReset` y pulse **Ejecutar**. En el registro verá cuántas filas, respuestas de formularios, archivos y carpetas se eliminarían. No cambia nada.
+2. Para borrar, cree temporalmente una función `function borrar(){ resetAllData('BORRAR TODO'); }`, ejecútela y luego elimínela.
+
+Se eliminan: todas las filas de Solicitudes, Documentos, Eventos, Decisiones, Observaciones, Historial_Estados, Correos, Auditoria y Errores; todas las respuestas de ambos formularios y las filas de sus hojas “Form Responses”; y se envían a la papelera de Drive las carpetas de solicitudes, los documentos copiados, los archivos subidos por estudiantes y los Excel exportados. La numeración vuelve a empezar en UMA-DC-2027-000001.
+
+Se conservan: formularios y preguntas, estructura de la hoja, configuración, usuario y contraseña, la ficha original en PDF y los disparadores.
+
+Las filas y las respuestas de formularios no se pueden recuperar. Los archivos de Drive se pueden restaurar desde la papelera durante 30 días.
+

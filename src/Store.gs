@@ -51,3 +51,10 @@ function nextId_() {
   var p=properties_(),year=config_().ACADEMIC_PERIOD.slice(0,4),key='SEQUENCE_'+year;
   var n=Number(p.getProperty(key)||0)+1;p.setProperty(key,String(n));return 'UMA-DC-'+year+'-'+String(n).padStart(6,'0');
 }
+/** Removes every data row below the header. Sheets refuses to delete all unfrozen rows, so row 2 is kept blank. */
+function clearTable_(name) {
+  var s=table_(name),last=s.getLastRow();
+  if(last>2)s.deleteRows(3,last-2);
+  if(last>1)s.getRange(2,1,1,s.getMaxColumns()).clearContent();
+  delete UMA_MEMO_['t:'+name];
+}

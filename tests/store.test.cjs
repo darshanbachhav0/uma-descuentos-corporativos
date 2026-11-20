@@ -37,3 +37,17 @@ test('columns added to the schema are appended to an existing sheet without touc
   assert.equal(sheet.rows[1][2],'OBSERVADA');assert.equal(sheet.rows[1][sheet.rows[0].indexOf('issues')],'Revisión 2: alerta');
   assert.equal(sheet.rows[1][1],'2026-11-20');
 });
+
+test('clearing a table keeps the header and one blank row, and later writes start at row 2',()=>{
+  const sheet=fakeSheet([['key','applicationId','fromStatus','toStatus','reviewer','timestamp','detail'],['a','1'],['b','2'],['c','3']]);
+  sheet.getLastRow=()=>sheet.rows.filter(r=>r.some(v=>v!==''&&v!==undefined)).length;
+  sheet.deleteRows=(from,count)=>{sheet.rows.splice(from-1,count);};
+  const range=sheet.getRange.bind(sheet);sheet.getRange=(row,col,nr,nc)=>({...range(row,col,nr,nc),clearContent(){sheet.rows[row-1]=sheet.rows[row-1].map(()=> '');}});
+  const c=load({Historial_Estados:sheet});
+  assert.equal(c.rows_('Historial_Estados').length,3);
+  c.clearTable_('Historial_Estados');
+  assert.equal(c.rows_('Historial_Estados').length,0);
+  assert.equal(sheet.rows[0][0],'key');
+  c.append_('Historial_Estados',{key:'new',applicationId:'9'});
+  assert.equal(c.rows_('Historial_Estados').length,1);
+});
