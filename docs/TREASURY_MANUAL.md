@@ -71,3 +71,13 @@ Se conservan: formularios y preguntas, estructura de la hoja, configuración, us
 
 Las filas y las respuestas de formularios no se pueden recuperar. Los archivos de Drive se pueden restaurar desde la papelera durante 30 días.
 
+## Ordenar la hoja de cálculo (una sola vez, solo el propietario)
+
+Deja la hoja “UMA — Control de Descuentos Corporativos” solo con **Form Responses 1** (las respuestas del formulario de solicitud).
+
+1. Pegue el `dist/Code.gs` más reciente en Apps Script y guarde.
+2. Elija la función `organizeSpreadsheet` y pulse **Ejecutar** (cuando nadie esté usando el panel).
+3. El registro muestra qué se movió y qué se borró, y el enlace de la nueva hoja del sistema.
+
+Las tablas del sistema (Solicitudes, Documentos, Eventos, Correos, etc.) se mueven a una hoja privada nueva, **“UMA — Datos del sistema (no editar)”**, dentro de la carpeta del sistema en Drive. El panel la usa automáticamente; no la edite a mano. Se elimina la pestaña de respuestas del antiguo formulario de corrección y las pestañas vacías. Las pestañas con datos que no pertenecen al sistema se conservan. Se puede ejecutar de nuevo sin problema.
+

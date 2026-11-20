@@ -24,9 +24,20 @@ function ingest_(response,correction) {
     try{
       var data=readResponse_(response,correction),a,issues=[],info=null,submittedAt=response.getTimestamp().toISOString();
       if(correction){
-        a=application_(cleanText_(data.values.applicationId));
-        if(!event.applicationId){
-          validateCorrection_(a,data.values,cfg);
+        if(event.applicationId)a=application_(event.applicationId);
+        else{
+          // The old correction form is no longer sent. A response that does not pass its code check is grouped
+          // by institutional email, the same rule as the main form, instead of failing forever.
+          try{a=application_(cleanText_(data.values.applicationId));validateCorrection_(a,data.values,cfg);}
+          catch(codeError){
+            a=studentApplication_({institutionalEmail:data.values.institutionalEmail,personalEmail:'',identityType:'',identityNumber:data.values.identityNumber},cfg.ACADEMIC_PERIOD);
+            if(!a){
+              // Nothing to attach it to: close the event so it is not retried, but keep a trace in Errores.
+              event.status='DONE';event.error='DISCARDED: '+codeError.message;event.retryAt='';put_('Eventos',event);
+              error_('CORRECTION_DISCARDED',key,new Error('Formulario de corrección sin solicitud asociada ('+codeError.message+')'));return '';
+            }
+            issues.push('Enviado con el formulario de corrección anterior; se asoció por correo institucional');
+          }
           assert_(!rows_('Eventos').some(function(prior){return prior.applicationId===a.id&&prior.formId===formId&&prior.status!=='DONE';}),'Existe una subsanación en proceso. Tesorería debe resolver ese envío primero.');
           event.applicationId=a.id;event.revision=nextRevision_(a);put_('Eventos',event);
         }
@@ -54,7 +65,9 @@ function ingest_(response,correction) {
       if(correction){
         if(!committed){a.revision=revision;a.version=Number(a.version)+1;a.submissions=Number(a.submissions||1)+1;a.lastSubmissionAt=submittedAt;}
         a.lastCorrectionAt=a.lastCorrectionAt||now_();a.correctionExpiresAt='';a.issues=issueText_(revision,issues);
-        transition_(a,'CORRECCION_RECIBIDA',a.recipient,cleanText_(data.values.clarification),key+':status');
+        // An approved discount is never reopened by a late correction; it only gets an alert.
+        if(a.status==='APLICADA_SIGU'){a.issues=issueText_(revision,['Nuevo envío recibido después de aplicar el descuento en SIGU'].concat(issues));transition_(a,'APLICADA_SIGU',a.recipient,'Envío del formulario de corrección',key+':status');}
+        else transition_(a,'CORRECCION_RECIBIDA',a.recipient,cleanText_(data.values.clarification),key+':status');
       }else if(revision===1){
         a.issues=issueText_(1,issues);
         if(!find_('Historial_Estados','key',key+':status'))transition_(a,'RECIBIDA',UMA.owner,'Recepción inicial',key+':status');
@@ -113,6 +126,7 @@ function reconcileSubmissions(e) {
   locked_(recoverDecisions_);
   if(p.getProperty('DATA_MODEL')!=='email-v2')locked_(migrateToEmailGrouping_);
   if(p.getProperty('STATUS_MODEL')!=='v2')locked_(migrateRetiredStatus_);
+  if(p.getProperty('EVENTS_RETRY')!=='v3')locked_(function(){rows_('Eventos').filter(function(e){return e.status!=='DONE'&&!e.applicationId;}).forEach(function(e){e.retryAt='';put_('Eventos',e);});p.setProperty('EVENTS_RETRY','v3');});
   [false,true].forEach(function(correction){
     var key=correction?'CORRECTION_FORM_ID':'GOOGLE_FORM_ID',cursorKey='CURSOR_'+key;
     var since=Number(p.getProperty(cursorKey)||0),cutoff=Date.now();

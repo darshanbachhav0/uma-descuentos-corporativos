@@ -1,7 +1,8 @@
 // Sheets persistence. Each Apps Script execution reads a table once and keeps the values in memory;
 // writes update that copy, and acquiring the script lock discards it so locked work always sees fresh data.
 var UMA_MEMO_ = {};
-function book_() { var id=config_().SPREADSHEET_ID; assert_(id,'Ejecute initializeProject primero'); if(!UMA_MEMO_.__book)UMA_MEMO_.__book=SpreadsheetApp.openById(id); return UMA_MEMO_.__book; }
+/** System tables. After organizeSpreadsheet they live in a separate private spreadsheet. */
+function book_() { var c=config_(),id=c.SYSTEM_SPREADSHEET_ID||c.SPREADSHEET_ID; assert_(id,'Ejecute initializeProject primero'); if(!UMA_MEMO_.__book)UMA_MEMO_.__book=SpreadsheetApp.openById(id); return UMA_MEMO_.__book; }
 function table_(name) { var s=book_().getSheetByName(name);assert_(s,'Falta la hoja '+name);return s; }
 function forgetTables_() { var b=UMA_MEMO_.__book; UMA_MEMO_={}; if(b)UMA_MEMO_.__book=b; }
 /** Loads a table once per execution and appends any schema column added by a newer version. */
@@ -58,3 +59,5 @@ function clearTable_(name) {
   if(last>1)s.getRange(2,1,1,s.getMaxColumns()).clearContent();
   delete UMA_MEMO_['t:'+name];
 }
+/** The spreadsheet Google Forms writes responses into ("Form Responses 1"). */
+function responsesBook_() { var id=config_().SPREADSHEET_ID; assert_(id,'Ejecute initializeProject primero'); return SpreadsheetApp.openById(id); }
