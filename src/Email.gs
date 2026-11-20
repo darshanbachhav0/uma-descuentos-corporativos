@@ -1,8 +1,11 @@
 function approvedEmail_(a) {
   return {subject:'Corporate discount application confirmation',body:'Dear student '+a.name+',\n\nWe inform you that your corporate discount has already been entered into SIGU.\n\nTo maintain the discount benefit, you must pay up to one day before the installment due date according to the payment schedule.\n\nSIGU: https://sigu.uma.edu.pe/alumno/entrar\n\nPayments can be made through SIGU, Yape, or debit/credit card. For BBVA channels, BCP app, Interbank, or Yape, the discount will be reflected within approximately 30 minutes.\n\nAtentamente,\nÁrea de Tesorería\nUniversidad María Auxiliadora'};
 }
+/** Asks the student to send the same application form again; the new submission joins this application by email. */
 function observedEmail_(a,link) {
-  return {subject:'Observaciones a su solicitud de descuento corporativo — UMA',body:'Estimado/a '+a.name+':\n\nHemos revisado su solicitud '+a.id+' de descuento corporativo ('+a.discount+').\n\nObservación: '+a.category+'\n'+a.observation+'\n\nCorrija lo indicado y presente sus documentos en el siguiente enlace seguro:\n'+link+'\n\nEl enlace vence el '+a.correctionExpiresAt.slice(0,10)+'. Es personal; no lo comparta. Su subsanación se incorporará al mismo expediente y se revisará nuevamente.\n\nAtentamente,\nÁrea de Tesorería\nUniversidad María Auxiliadora'};
+  return {subject:'Observaciones a su solicitud de descuento corporativo — UMA',body:'Estimado/a '+a.name+':\n\nHemos revisado su solicitud '+a.id+' de descuento corporativo ('+a.discount+').\n\nObservación: '+a.category+'\n'+a.observation+
+    '\n\nPara corregirla, vuelva a llenar el formulario de solicitud y adjunte los documentos corregidos:\n'+link+
+    '\n\nUse el mismo correo institucional ('+a.institutionalEmail+'). Así su nuevo envío se agregará automáticamente a esta misma solicitud y Tesorería lo revisará nuevamente.\n\nAtentamente,\nÁrea de Tesorería\nUniversidad María Auxiliadora'};
 }
 /** Visible context shared by plain text and HTML. No identity numbers or private file links. */
 function deliveryBody_(body,a) {
@@ -19,7 +22,7 @@ function queueDecisionEmail_(a,type,decisionKey) {
   var key=decisionKey+':EMAIL';if(find_('Correos','key',key))return;
   assert_(validEmail_(a.recipient),'Destinatario inválido');
   assert_([a.institutionalEmail,a.personalEmail].indexOf(a.recipient)>=0,'El destinatario debe proceder del formulario');
-  var message=type==='APPROVED'?approvedEmail_(a):observedEmail_(a,correctionUrl_(a));
+  var message=type==='APPROVED'?approvedEmail_(a):observedEmail_(a,studentFormUrl_(config_()));
   append_('Correos',{key:key,applicationId:a.id,decisionKey:decisionKey,type:type,recipient:a.recipient,subject:message.subject,body:deliveryBody_(message.body,a),status:'PENDING',attempts:0,createdAt:now_()});
   markMailQueue_();
 }

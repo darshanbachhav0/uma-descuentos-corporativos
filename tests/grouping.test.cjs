@@ -111,3 +111,20 @@ test('Pendientes lists cases that need Treasury before cases waiting for the stu
   assert.deepEqual(c.filtered_(rows,{pendingOnly:true}).map(a=>a.id),['resent','old-review','waiting']);
   assert.deepEqual(c.filtered_(rows,{}).map(a=>a.id),['done','waiting','resent','old-review']);
 });
+
+test('after an observation, the student resubmits the same form and the new documents join the profile with dated names',()=>{
+  const s=createSystem(),first=submit(s,'first');
+  const observed=observe(s,first);assert.equal(observed.status,'OBSERVADA');
+  s.file('new_ficha_67890','ficha-corregida.pdf');
+  const second=s.response('second',s.valid({socioeconomic:['new_ficha_67890'],supporting:[]}));second.getTimestamp=()=>new Date('2026-11-21T19:45:00Z');
+  const id=s.ctx.ingest_(second,false),a=s.ctx.application_(id);
+  assert.equal(id,first.id);assert.equal(a.status,'CORRECCION_RECIBIDA');assert.equal(a.revision,2);
+  const latest=s.db.Documentos.filter(d=>d.revision===2);
+  assert.equal(latest.length,1);assert.equal(latest[0].sourceId,'new_ficha_67890');
+  assert.equal(latest[0].name,'Ficha socioecon\u00f3mica 1 \u00b7 2026-11-21 14.45.pdf');
+  assert.equal(latest[0].submittedAt,'2026-11-21T19:45:00.000Z');
+  const names=[...s.folders.values()].map(f=>f.name);
+  assert.ok(names.includes('Revisi\u00f3n 2 \u00b7 2026-11-21 14.45'));
+  assert.ok(names.includes(first.id+' \u00b7 '+first.institutionalEmail));
+  const view=s.ctx.getApplication(id);assert.equal(view.documents[0].revision,2);
+});

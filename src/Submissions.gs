@@ -49,7 +49,7 @@ function ingest_(response,correction) {
       }
       var revision=Number(event.revision);
       if(!(data.values.signed&&data.values.consent))issues.push('Falta confirmación de firma o privacidad');
-      issues=issues.concat(copyDocuments_(a,data.uploads,revision));
+      issues=issues.concat(copyDocuments_(a,data.uploads,revision,submittedAt));
       var committed=Number(a.revision)>=revision;
       if(correction){
         if(!committed){a.revision=revision;a.version=Number(a.version)+1;a.submissions=Number(a.submissions||1)+1;a.lastSubmissionAt=submittedAt;}
