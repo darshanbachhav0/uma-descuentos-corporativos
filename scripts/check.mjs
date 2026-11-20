@@ -14,3 +14,5 @@ const published=fs.readdirSync('web-dist');
 if(published.some(name=>/\.gs$|appsscript|demo|secret|credential|\.env/i.test(name)))throw new Error('Private/development artifact in Render publish directory');
 if(fs.readFileSync('web-dist/index.html','utf8').includes('<?'))throw new Error('Unresolved Apps Script template in static site');
 console.log('Render assets compile; publish directory excludes Apps Script source and demo data.');
+if(typeof (await import('../api/server.mjs')).createApiServer!=='function')throw new Error('Management API is missing');
+if(fs.readFileSync('web-dist/transport.js','utf8').includes("createElement('iframe')"))throw new Error('Management login must not depend on a Google iframe');
