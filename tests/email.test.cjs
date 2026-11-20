@@ -15,7 +15,7 @@ function textFromHtml(html){
 
 test('approval retains required subject and wording, with application context and reply address in both MIME alternatives',()=>{
   const s=createSystem(),a=approve(s),original=s.ctx.approvedEmail_(a);
-  s.ctx.processEmailQueue();const mail=s.sent[0];
+  const mail=s.sent[0];
   assert.equal(mail.subject,original.subject);
   assert.ok(mail.body.startsWith(original.body+'\n\n---\n'));
   assert.ok(mail.body.includes('Referencia de solicitud: '+a.id));
@@ -31,7 +31,7 @@ test('approval retains required subject and wording, with application context an
 });
 
 test('existing pending notifications acquire context once; SENT messages are never changed or sent again',()=>{
-  const s=createSystem(),a=approve(s);
+  const s=createSystem();s.props.EMAIL_NOTIFICATION_ENABLED='false';const a=approve(s);s.props.EMAIL_NOTIFICATION_ENABLED='true';
   s.db.Correos[0].body=s.ctx.approvedEmail_(a).body;
   s.ctx.processEmailQueue();const delivered={...s.db.Correos[0]};
   s.ctx.processEmailQueue();
@@ -41,7 +41,7 @@ test('existing pending notifications acquire context once; SENT messages are nev
 });
 
 test('queue limits each minute-trigger run to three messages and drains the rest without duplicates',()=>{
-  const s=createSystem();for(let i=1;i<=7;i++)approve(s,i);
+  const s=createSystem();s.props.EMAIL_NOTIFICATION_ENABLED='false';for(let i=1;i<=7;i++)approve(s,i);s.props.EMAIL_NOTIFICATION_ENABLED='true';
   assert.equal(s.ctx.processEmailQueue().sent,3);assert.equal(s.sent.length,3);
   assert.equal(s.db.Correos.filter(m=>m.status==='PENDING').length,4);
   assert.equal(s.ctx.processEmailQueue().sent,3);

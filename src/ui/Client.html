@@ -99,13 +99,32 @@ async function loadApplications() {
   $('paginationText').textContent = total ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} de ${total}` : '';
   $('prevPage').disabled = page <= 1; $('nextPage').disabled = page * PAGE_SIZE >= total;
 }
+/* Each tab keeps its own search and filters. */
+const FILTER_FIELDS = ['search','statusFilter','discountFilter','schoolFilter','fromFilter','toFilter'];
+const tabFilters = {};
+function saveTabFilters() { if (VIEWS[view]?.filter) tabFilters[view] = {queue, values:Object.fromEntries(FILTER_FIELDS.map(id => [id, $(id).value]))}; }
+function restoreTabFilters() {
+  const saved = tabFilters[view] || {queue:'', values:{}};
+  FILTER_FIELDS.forEach(id => { $(id).value = saved.values[id] || ''; });
+  queue = saved.queue || '';
+  document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c.dataset.queue === queue));
+}
+function updateClearButton() {
+  const fixed = VIEWS[view]?.filter?.status;
+  const active = FILTER_FIELDS.some(id => $(id).value && !(id === 'statusFilter' && fixed)) || !!queue;
+  $('clearFilters').classList.toggle('hidden', !active);
+}
 async function navigate(next) {
-  view = VIEWS[next] ? next : 'pending'; page = 1; queue = '';
+  saveTabFilters();
+  view = VIEWS[next] ? next : 'pending'; page = 1;
   document.querySelectorAll('.tab').forEach(b => { const on = b.dataset.view === view; b.classList.toggle('active', on); on ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'); });
   $('applicationsPanel').classList.toggle('hidden', view === 'emails'); $('emailsPanel').classList.toggle('hidden', view !== 'emails');
   if (view === 'emails') return loadEmails();
+  restoreTabFilters();
   const fixed = VIEWS[view].filter.status;
-  $('statusFilter').value = fixed || ''; $('statusFilter').disabled = !!fixed;
+  if (fixed) $('statusFilter').value = fixed; $('statusFilter').disabled = !!fixed;
+  $('queueChips').classList.toggle('hidden', view !== 'pending');
+  updateClearButton();
   $('applicationRows').innerHTML = '';
   await loadApplications();
 }
@@ -130,17 +149,37 @@ function documentFile(fileId) {
   }
   return fileCache.get(key);
 }
-async function previewDocument(fileId) {
-  const id = detail.application.id;
-  document.querySelectorAll('[data-preview]').forEach(b => b.closest('li').classList.toggle('active', b.dataset.preview === fileId));
-  $('previewBox').classList.remove('hidden'); $('previewLoading').classList.remove('hidden');
-  try {
-    const file = await documentFile(fileId);
-    if (!detail || detail.application.id !== id) return;
-    releasePreview(); previewObjectUrl = URL.createObjectURL(fileBlob(file));
-    $('documentPreview').src = previewObjectUrl;
-  } finally { $('previewLoading')?.classList.add('hidden'); }
+/* Full-screen document viewer: every document of the application, newest revision first. */
+let viewerList = [], viewerIndex = 0, viewerFile = null;
+function viewerDocuments() {
+  const docs = (detail?.documents || []).slice();
+  return docs.sort((x, y) => Number(y.revision) - Number(x.revision) || (x.kind === 'socioeconomic' ? -1 : 1));
 }
+async function openViewer(fileId) {
+  viewerList = viewerDocuments(); viewerIndex = Math.max(0, viewerList.findIndex(d => d.fileId === fileId));
+  if (!$('viewerDialog').open) $('viewerDialog').showModal();
+  await showViewerDocument();
+}
+async function showViewerDocument() {
+  const d = viewerList[viewerIndex], id = detail.application.id; if (!d) return;
+  $('viewerTitle').textContent = d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Documento sustentatorio';
+  $('viewerSub').textContent = `${detail.application.name} · Revisión ${d.revision} · ${d.name}`;
+  $('viewerPosition').textContent = `${viewerIndex + 1} de ${viewerList.length}`;
+  $('viewerPrev').disabled = viewerIndex <= 0; $('viewerNext').disabled = viewerIndex >= viewerList.length - 1;
+  $('viewerLoading').classList.remove('hidden'); viewerFile = null;
+  try {
+    const file = await documentFile(d.fileId);
+    if (!detail || detail.application.id !== id || viewerList[viewerIndex] !== d) return;
+    releasePreview(); previewObjectUrl = URL.createObjectURL(fileBlob(file)); viewerFile = file;
+    const image = file.mimeType.startsWith('image/');
+    $('viewerImage').classList.toggle('hidden', !image); $('viewerFrame').classList.toggle('hidden', image);
+    if (image) { $('viewerImage').src = previewObjectUrl; $('viewerImage').alt = d.name; $('viewerFrame').src = 'about:blank'; }
+    else { $('viewerFrame').src = previewObjectUrl + '#view=FitH'; $('viewerImage').removeAttribute('src'); }
+  } catch (error) { handle(error); }
+  finally { $('viewerLoading').classList.add('hidden'); }
+}
+function viewerStep(offset) { const next = viewerIndex + offset; if (next < 0 || next >= viewerList.length) return; viewerIndex = next; showViewerDocument(); }
+function closeViewer() { $('viewerFrame').src = 'about:blank'; $('viewerImage').removeAttribute('src'); releasePreview(); viewerFile = null; }
 
 /* ---------- Application ---------- */
 function documentList(documents, current) {
@@ -179,7 +218,6 @@ function renderDetail() {
     ${a.processingError ? `<div class="error">Error al procesar documentos: ${esc(a.processingError)}. El sistema lo reintenta automáticamente.</div>` : ''}
     <dl class="facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
     <h3>Documentos</h3>${documentList(documents, a.revision)}
-    <div id="previewBox" class="preview-box hidden"><iframe id="documentPreview" class="preview" title="Vista previa del documento" referrerpolicy="no-referrer"></iframe><div id="previewLoading" class="overlay hidden"><div><span class="spinner large"></span><span class="label">Cargando documento…</span></div></div></div>
     ${observations.length ? '<h3>Observaciones enviadas</h3><ul class="log">' + observations.map(o => `<li><strong>${esc(o.category)}</strong> · ${esc(o.observation)}<small>${date(o.timestamp)}</small></li>`).join('') + '</ul>' : ''}
     <h3>Envíos del estudiante</h3><ul class="log">${submissions.map(e => `<li>Revisión ${esc(e.revision)}${e.correction ? ' · formulario de corrección' : ''} ${e.status === 'DONE' ? '' : status(e.status)}<small>${date(e.timestamp)}</small>${e.error ? `<small>${esc(e.error)}</small>` : ''}</li>`).join('') || '<li>—</li>'}</ul>
     <h3>Historial</h3><ul class="log">${history.map(h => `<li>${esc(labels[h.toStatus] || h.toStatus)}${h.detail ? ' · ' + esc(h.detail) : ''}<small>${date(h.timestamp)} · ${esc(h.reviewer)}</small></li>`).join('')}</ul>
@@ -187,8 +225,6 @@ function renderDetail() {
     <h3>Correos enviados</h3>${emails.map(m => `<div class="mail"><span><strong>${esc(emailTypes[m.type] || m.type)}</strong><small>${esc(m.recipient)} · ${date(m.sentAt || m.createdAt)}</small></span>${status(m.status)}</div>`).join('') || '<p class="hint">Aún no hay correos.</p>'}
   </section></div>`;
   wireDecision();
-  const first = documents.find(d => Number(d.revision) === Number(a.revision)) || documents[0];
-  if (first && !window.UMA_DEMO) previewDocument(first.fileId).catch(handle);
 }
 function wireDecision() {
   const form = $('reviewForm'); if (!form) return;
@@ -233,20 +269,48 @@ async function confirmDecision() {
   $('confirmDecision').classList.add('is-loading'); $('confirmDecision').disabled = true; $('cancelDecision').disabled = true;
   try {
     const id = pendingDecision.id, position = ids.indexOf(id), approved = pendingDecision.decision === 'APPROVED';
-    await api('saveDecision', pendingDecision);
+    const result = await api('saveDecision', pendingDecision);
     $('confirmDialog').close(); pendingDecision = null;
-    toast(approved ? 'Aprobación guardada. El correo quedó en cola.' : 'Observación guardada. El correo quedó en cola.');
-    await loadApplications();
+    await Promise.all([showEmailResult(result.email, approved ? 'Aprobación guardada' : 'Observación guardada'), loadApplications().catch(handle)]);
     const next = ids.find((x, i) => i >= position && x !== id);
     if (next) await openDetail(next); else { $('detailDialog').close(); toast('No quedan más solicitudes en esta vista.'); }
   } catch (e) { handle(e); } finally { $('confirmDecision').classList.remove('is-loading'); $('confirmDecision').disabled = false; $('cancelDecision').disabled = false; }
 }
 
+/** Tells the reviewer plainly whether the student's email went out, and why not. Resolves when closed. */
+function showEmailResult(email, saved) {
+  email = email || {status:'PENDING'};
+  const sent = email.status === 'SENT', uncertain = email.status === 'UNCERTAIN';
+  $('resultIcon').className = 'confirm-icon ' + (sent ? 'ok' : uncertain ? 'bad' : 'warn');
+  $('resultIcon').innerHTML = sent ? '<span class="ui-icon" data-icon="check"></span>' : '<span class="ui-icon" data-icon="alert"></span>';
+  $('resultTitle').textContent = sent ? 'Correo enviado' : uncertain ? 'No se pudo confirmar el envío' : 'El correo aún no se envió';
+  $('resultText').textContent = sent
+    ? `${saved}. Google aceptó el correo para ${email.recipient}. Si el estudiante no lo encuentra, que revise Spam y Promociones.`
+    : uncertain ? `${saved}, pero el envío a ${email.recipient || 'el estudiante'} falló o no se pudo confirmar. No se reintenta solo para evitar duplicados; revíselo en Correos.`
+    : `${saved}. El correo para ${email.recipient || 'el estudiante'} quedó en cola y se enviará automáticamente.`;
+  $('resultReason').textContent = email.error ? 'Motivo: ' + email.error : '';
+  $('resultReason').classList.toggle('hidden', !email.error);
+  $('resultMails').classList.toggle('hidden', sent);
+  $('resultDialog').showModal();
+  return new Promise(resolve => { $('resultDialog').addEventListener('close', () => resolve($('resultDialog').returnValue), {once:true}); });
+}
+
 /* ---------- Emails ---------- */
+let emailCache = [];
 async function loadEmails() {
   if (!$('emailRows').children.length) $('emailRows').innerHTML = skeletonRows(6, 5);
-  const rows = await api('listEmails');
-  $('emailRows').innerHTML = rows.length ? rows.map(m => `<tr><td><button class="link code" data-open="${esc(m.applicationId)}">${esc(m.applicationId)}</button></td><td>${esc(m.recipient)}</td><td>${esc(emailTypes[m.type] || m.type)}</td><td>${date(m.sentAt || m.createdAt)}</td><td>${status(m.status)}${m.error ? `<small>${esc(m.error)}</small>` : ''}</td><td class="nowrap">${boot.isAdmin && m.status === 'UNCERTAIN' ? `<button class="button" data-resolve="${esc(m.key)}" data-resolution="CONFIRM_SENT">Marcar enviado</button> <button class="button" data-resolve="${esc(m.key)}" data-resolution="REQUEUE">Reintentar</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="empty">No hay correos.</td></tr>';
+  emailCache = await api('listEmails');
+  renderEmails();
+}
+function renderEmails() {
+  const q = $('mailSearch').value.trim().toLowerCase(), type = $('mailType').value, state = $('mailStatus').value, from = $('mailFrom').value, to = $('mailTo').value;
+  const limaDay = v => v ? new Date(Date.parse(v) - 5 * 3600000).toISOString().slice(0, 10) : '';
+  const rows = emailCache.filter(m => (!q || [m.applicationId, m.recipient].join(' ').toLowerCase().includes(q)) && (!type || m.type === type) && (!state || m.status === state || (state === 'UNCERTAIN' && m.status === 'SENDING'))
+    && (!from || limaDay(m.sentAt || m.createdAt) >= from) && (!to || limaDay(m.sentAt || m.createdAt) <= to));
+  $('clearMailFilters').classList.toggle('hidden', !(q || type || state || from || to));
+  $('mailCount').textContent = `${rows.length} de ${emailCache.length} correos`;
+  $('emailRows').innerHTML = rows.length ? rows.map(m => `<tr><td><button class="link code" data-open="${esc(m.applicationId)}">${esc(m.applicationId)}</button></td><td>${esc(m.recipient)}</td><td>${esc(emailTypes[m.type] || m.type)}</td><td>${date(m.sentAt || m.createdAt)}</td><td>${status(m.status)}${m.error ? `<small>${esc(m.error)}</small>` : ''}</td><td class="row-actions">${m.status === 'PENDING' ? `<button class="button small" data-send-now="${esc(m.key)}">Enviar ahora</button>` : ''}${boot.isAdmin && m.status === 'UNCERTAIN' ? `<button class="button small" data-resolve="${esc(m.key)}" data-resolution="CONFIRM_SENT">Marcar enviado</button> <button class="button small" data-resolve="${esc(m.key)}" data-resolution="REQUEUE">Reintentar</button>` : ''}</td></tr>`).join('')
+    : `<tr><td colspan="6" class="empty"><strong>No hay correos aquí</strong>${emailCache.length ? 'Cambie los filtros para ver más.' : 'Los correos enviados a los estudiantes aparecerán aquí.'}</td></tr>`;
 }
 
 /* ---------- Start-up and events ---------- */
@@ -256,19 +320,31 @@ async function init() {
   $('actor').textContent = String(boot.actor).replace(/^gestión:/, ''); $('avatar').textContent = initials(boot.actor); $('period').textContent = boot.period;
   $('pausedBanner').classList.toggle('hidden', boot.emailEnabled); $('demoBanner').classList.toggle('hidden', !window.UMA_DEMO);
   choices('statusFilter', boot.states); choices('discountFilter', boot.discounts); choices('schoolFilter', boot.schools);
+  $('queueChips').classList.toggle('hidden', view !== 'pending');
   if (window.UMA_DEMO) $('logoutManagement').classList.add('hidden');
   if (window.UMA_REMOTE) window.UMA_REMOTE.connected();
   const linked = new URLSearchParams(location.hash.slice(1)), applicationId = linked.get('solicitud');
-  if (applicationId) { try { await openDetail(applicationId); if (linked.get('documento')) await previewDocument(linked.get('documento')); } catch (error) { handle(error); } }
+  if (applicationId) { try { await openDetail(applicationId); if (linked.get('documento')) await openViewer(linked.get('documento')); } catch (error) { handle(error); } }
 }
-const reload = () => { page = 1; loadApplications().catch(handle); };
+const reload = () => { page = 1; updateClearButton(); loadApplications().catch(handle); };
 $('navigation').onclick = e => { const tab = e.target.closest('[data-view]'); if (tab) navigate(tab.dataset.view).catch(handle); };
 $('refresh').onclick = e => withButton(e.currentTarget, () => navigate(view)).catch(handle);
-$('moreFilters').onclick = () => { const hidden = $('advancedFilters').classList.toggle('hidden'); $('moreFilters').setAttribute('aria-expanded', String(!hidden)); };
 $('filters').onsubmit = e => { e.preventDefault(); reload(); };
 $('search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(reload, 300); };
 ['statusFilter','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).onchange = reload);
-$('clearFilters').onclick = () => { ['search','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).value = ''); if (!$('statusFilter').disabled) $('statusFilter').value = ''; queue = ''; reload(); };
+$('clearFilters').onclick = () => { ['search','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).value = ''); if (!$('statusFilter').disabled) $('statusFilter').value = ''; queue = ''; document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c.dataset.queue === '')); reload(); };
+$('queueChips').onclick = e => { const chip = e.target.closest('[data-queue]'); if (!chip) return; queue = chip.dataset.queue; document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c === chip)); reload(); };
+$('mailFilters').onsubmit = e => e.preventDefault();
+['mailSearch','mailType','mailStatus','mailFrom','mailTo'].forEach(id => $(id).addEventListener(id === 'mailSearch' ? 'input' : 'change', renderEmails));
+$('clearMailFilters').onclick = () => { ['mailSearch','mailType','mailStatus','mailFrom','mailTo'].forEach(id => $(id).value = ''); renderEmails(); };
+$('refreshMails').onclick = e => withButton(e.currentTarget, loadEmails).catch(handle);
+$('viewerPrev').onclick = () => viewerStep(-1);
+$('viewerNext').onclick = () => viewerStep(1);
+$('viewerClose').onclick = () => $('viewerDialog').close();
+$('viewerDownload').onclick = () => { if (viewerFile) downloadFile(viewerFile); };
+$('viewerDialog').addEventListener('close', closeViewer);
+$('resultContinue').onclick = () => $('resultDialog').close('continue');
+$('resultMails').onclick = () => { $('resultDialog').close('mails'); $('detailDialog').close(); navigate('emails').catch(handle); };
 $('prevPage').onclick = () => { page--; loadApplications().catch(handle); };
 $('nextPage').onclick = () => { page++; loadApplications().catch(handle); };
 $('closeDetail').onclick = () => $('detailDialog').close();
@@ -276,9 +352,11 @@ $('prevDetail').onclick = () => step(-1).catch(handle);
 $('nextDetail').onclick = () => step(1).catch(handle);
 $('cancelDecision').onclick = () => $('confirmDialog').close();
 $('confirmDecision').onclick = confirmDecision;
-$('detailDialog').addEventListener('close', () => { const frame = $('documentPreview'); if (frame) frame.src = 'about:blank'; releasePreview(); detail = null; });
+$('detailDialog').addEventListener('close', () => { if ($('viewerDialog').open) $('viewerDialog').close(); releasePreview(); detail = null; });
 document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+  if ($('viewerDialog').open) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); viewerStep(e.key === 'ArrowRight' ? 1 : -1); } return; }
+  if ($('resultDialog').open) return;
   if ($('detailDialog').open && !$('confirmDialog').open && !typing && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) step(e.key === 'ArrowRight' ? 1 : -1).catch(handle);
   if (e.key === 'Enter' && e.target.matches?.('tr[data-open]')) openDetail(e.target.dataset.open).catch(handle);
 });
@@ -288,11 +366,13 @@ document.addEventListener('click', async e => {
   try {
     if (goto) return await navigate(goto.dataset.goto);
     if (e.target.closest('[data-attention]')) { await navigate('pending'); queue = 'attention'; return reload(); }
-    if (open && !$('detailDialog').contains(open)) return await openDetail(open.dataset.open);
-    if (preview) await previewDocument(preview.dataset.preview);
+    if (open && !$('detailDialog').contains(open)) { if ($('detailDialog').open) $('detailDialog').close(); return await openDetail(open.dataset.open); }
+    if (preview) await openViewer(preview.dataset.preview);
     if (download) downloadFile(await documentFile(download.dataset.download));
     if (e.target.closest('[data-ack]')) { await withButton(e.target.closest('[data-ack]'), () => api('acknowledgeIssues', detail.application.id, detail.application.version)); await openDetail(detail.application.id); await loadApplications(); toast('Alertas marcadas como revisadas.'); }
-    if (e.target.id === 'renewCorrection') { await withButton(e.target, () => api('renewCorrection', detail.application.id)); await openDetail(detail.application.id); toast('Nuevo enlace enviado a la cola de correos.'); }
+    if (e.target.id === 'renewCorrection') { const result = await withButton(e.target, () => api('renewCorrection', detail.application.id)); await showEmailResult(result.email, 'Nuevo enlace de corrección generado'); await openDetail(detail.application.id); }
+    const sendNow = e.target.closest('[data-send-now]');
+    if (sendNow) { const result = await withButton(sendNow, () => api('sendEmailNow', sendNow.dataset.sendNow)); await loadEmails(); await showEmailResult(result, 'Envío solicitado'); }
     if (resolve) {
       const note = prompt(resolve.dataset.resolution === 'REQUEUE' ? 'Describa cómo comprobó que el correo no llegó. Reintentar puede duplicarlo.' : 'Describa cómo comprobó que el correo fue enviado.');
       if (note) { await api('resolveEmail', resolve.dataset.resolve, resolve.dataset.resolution, note); await loadEmails(); }

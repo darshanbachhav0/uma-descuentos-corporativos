@@ -91,10 +91,10 @@ textarea{width:100%;min-height:130px;resize:vertical;line-height:1.55}
 /* Toolbar and table */
 .toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:14px 18px;border-bottom:1px solid var(--line)}
 .toolbar.advanced{background:#fafbfc;padding-top:10px;padding-bottom:10px}
-.search{position:relative;flex:0 1 300px;display:flex}
+.search{position:relative;flex:0 1 240px;display:flex}
 .search .ui-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);width:16px;height:16px}
 .search input{width:100%;padding-left:34px}
-.toolbar select{max-width:190px}
+.toolbar select{max-width:155px}
 .date{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
 .spacer{flex:1}
 .table-wrap{overflow-x:auto}
@@ -189,6 +189,44 @@ dialog::backdrop{background:#20242d80;backdrop-filter:blur(2px)}
 .toast.error{background:var(--bad)}
 @keyframes rise{from{opacity:0;transform:translate(-50%,8px)}}
 
+
+/* Quick filters for Pendientes */
+.chips{display:flex;flex-wrap:wrap;gap:8px;padding:14px 18px 0}
+.chip-btn,.chip[data-queue]{border:1px solid var(--line);background:#fff;color:var(--ink-2);border-radius:999px;padding:5px 14px;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.chip[data-queue]:hover{border-color:var(--brand-line);color:var(--brand-dark)}
+.chip[data-queue].active{background:var(--brand);border-color:var(--brand);color:#fff}
+.toolbar .date input{width:128px}
+.row-actions{white-space:nowrap;text-align:right}
+.row-actions .button+.button{margin-left:4px}
+
+/* Full-screen document viewer */
+.viewer-dialog{width:100vw;height:100vh;max-width:100vw;max-height:100vh;margin:0;border-radius:0;background:#2b2f38;color:#fff}
+.viewer-dialog[open]{display:flex;flex-direction:column;animation:fade .15s ease-out}
+.viewer-dialog::backdrop{background:#000}
+.viewer-header{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 18px;background:#20242d;border-top:4px solid var(--brand)}
+.viewer-title{display:flex;align-items:center;gap:12px;min-width:0}
+.viewer-title .ui-icon{color:#f7a1bb;width:22px;height:22px}
+.viewer-title h2{font-size:16px;color:#fff}
+.viewer-title h2:focus{outline:0}
+.viewer-title .sub{color:#b8bec9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
+.viewer-actions{display:flex;align-items:center;gap:6px;flex-shrink:0}
+.viewer-actions .sub{color:#d6dae1;min-width:52px;text-align:center}
+.viewer-actions .button{background:#ffffff14;border-color:#ffffff26;color:#fff}
+.viewer-actions .button:hover:not(:disabled){background:#ffffff26;border-color:#ffffff40}
+.viewer-body{position:relative;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;background:#3a3f4a}
+.viewer-body iframe{width:100%;height:100%;border:0;background:#fff}
+.viewer-body img{max-width:100%;max-height:100%;object-fit:contain;background:#fff;box-shadow:0 8px 30px #0006}
+.viewer-body .overlay{background:#3a3f4acc;color:#fff}
+.viewer-body .overlay>div{text-align:center}
+.viewer-body .overlay .label{display:block;margin-top:10px;color:#e5e7eb;font-size:13px}
+
+/* Result after a decision */
+.result-dialog{text-align:left}
+.confirm-icon.ok{background:var(--ok-soft);color:var(--ok)}
+.confirm-icon.warn{background:var(--warn-soft);color:var(--warn)}
+.confirm-icon.bad{background:var(--bad-soft);color:var(--bad)}
+.reason{background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--ink-2)!important;font-size:13px}
+
 /* Responsive */
 @media(max-width:1000px){
   .detail-grid{grid-template-columns:1fr}
@@ -225,6 +263,9 @@ dialog::backdrop{background:#20242d80;backdrop-filter:blur(2px)}
   .detail-nav .sub{display:none}
   .detail-left,.detail-right{padding:16px 14px}
   .facts{grid-template-columns:1fr}
+  .toolbar .date{flex:1 1 45%}.toolbar .date input{width:100%}
+  .chips{padding:12px 12px 0}
+  .viewer-header{padding:8px 10px;flex-wrap:wrap}.viewer-title .sub{max-width:80vw}.viewer-actions{width:100%;justify-content:flex-end}.viewer-actions .label{display:none}
   .preview-box{height:380px}
 }
 </style>
@@ -250,27 +291,36 @@ dialog::backdrop{background:#20242d80;backdrop-filter:blur(2px)}
     <p id="pausedBanner" class="banner hidden">El envío de correos está pausado. Las decisiones se guardan y los correos quedan en cola.</p>
     <p id="attentionBar" class="banner hidden" role="status"></p>
     <section id="applicationsPanel" class="card">
+      <div id="queueChips" class="chips hidden" role="group" aria-label="Filtrar pendientes"><button type="button" class="chip active" data-queue="">Todas</button><button type="button" class="chip" data-queue="review">Por revisar</button><button type="button" class="chip" data-queue="waiting">Esperando al estudiante</button><button type="button" class="chip" data-queue="attention">Con alertas</button></div>
       <form id="filters" class="toolbar">
         <label class="search"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></span><input id="search" type="search" placeholder="Buscar por nombre, DNI, correo o código" autocomplete="off" aria-label="Buscar"></label>
         <select id="statusFilter" aria-label="Estado"><option value="">Todos los estados</option></select>
         <select id="discountFilter" aria-label="Convenio"><option value="">Todos los convenios</option></select>
-        <button type="button" id="moreFilters" class="button" aria-expanded="false" aria-controls="advancedFilters"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M4 6h16M7 12h10M10 18h4"/><circle cx="8" cy="6" r="2" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="2" fill="currentColor" stroke="none"/></svg></span>Filtros</button>
+        <select id="schoolFilter" aria-label="Escuela"><option value="">Todas las escuelas</option></select>
+        <label class="date">Desde <input id="fromFilter" type="date"></label>
+        <label class="date">Hasta <input id="toFilter" type="date"></label>
+        <button type="button" id="clearFilters" class="link hidden">Limpiar filtros</button>
         <span class="spacer"></span>
         <button type="button" id="refresh" class="button icon-only" aria-label="Actualizar" title="Actualizar"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M20 7v5h-5M4 17v-5h5M5.7 7a7 7 0 0 1 11.5-2L20 8M4 16l2.8 3a7 7 0 0 0 11.5-2"/></svg></span></button>
         <button type="button" id="export" class="button outline"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/></svg></span>Exportar Excel</button>
       </form>
-      <div id="advancedFilters" class="toolbar advanced hidden">
-        <select id="schoolFilter" aria-label="Escuela"><option value="">Todas las escuelas</option></select>
-        <label class="date">Desde <input id="fromFilter" type="date"></label>
-        <label class="date">Hasta <input id="toFilter" type="date"></label>
-        <button type="button" id="clearFilters" class="link">Limpiar filtros</button>
-      </div>
       <div class="table-wrap"><table class="apps"><thead><tr><th>Estudiante</th><th>Correo institucional</th><th>Convenio</th><th class="num">Envíos</th><th>Último envío</th><th>Estado</th></tr></thead><tbody id="applicationRows"></tbody></table></div>
       <footer class="pager"><span id="paginationText"></span><span class="pager-buttons"><button id="prevPage" class="button small" aria-label="Página anterior"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m15 5-7 7 7 7"/></svg></span></button><button id="nextPage" class="button small" aria-label="Página siguiente"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m9 5 7 7-7 7"/></svg></span></button></span></footer>
     </section>
     <section id="emailsPanel" class="card hidden">
-      <p class="hint pad">“Aceptado por Google” significa que Google aceptó el envío; no confirma que llegó al buzón.</p>
+      <form id="mailFilters" class="toolbar">
+        <label class="search"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg></span><input id="mailSearch" type="search" placeholder="Buscar por código o destinatario" autocomplete="off" aria-label="Buscar correos"></label>
+        <select id="mailType" aria-label="Tipo"><option value="">Todos los tipos</option><option value="APPROVED">Aprobación</option><option value="OBSERVED">Observación</option><option value="RECEIVED">Acuse de recepción</option></select>
+        <select id="mailStatus" aria-label="Estado del correo"><option value="">Todos los estados</option><option value="SENT">Aceptado por Google</option><option value="PENDING">En cola</option><option value="UNCERTAIN">Requiere comprobación</option><option value="CANCELLED">Reemplazado</option></select>
+        <label class="date">Desde <input id="mailFrom" type="date"></label>
+        <label class="date">Hasta <input id="mailTo" type="date"></label>
+        <button type="button" id="clearMailFilters" class="link hidden">Limpiar filtros</button>
+        <span class="spacer"></span>
+        <button type="button" id="refreshMails" class="button icon-only" aria-label="Actualizar" title="Actualizar"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M20 7v5h-5M4 17v-5h5M5.7 7a7 7 0 0 1 11.5-2L20 8M4 16l2.8 3a7 7 0 0 0 11.5-2"/></svg></span></button>
+      </form>
+      <p class="hint pad">“Aceptado por Google” significa que Google aceptó el envío; no confirma que llegó al buzón. Si no llega, pida al estudiante revisar Spam y Promociones.</p>
       <div class="table-wrap"><table class="mails"><thead><tr><th>Solicitud</th><th>Destinatario</th><th>Tipo</th><th>Fecha</th><th>Estado</th><th></th></tr></thead><tbody id="emailRows"></tbody></table></div>
+      <footer class="pager"><span id="mailCount"></span></footer>
     </section>
     <footer class="page-footer">Universidad María Auxiliadora · Área de Tesorería</footer>
   </main>
@@ -281,6 +331,11 @@ dialog::backdrop{background:#20242d80;backdrop-filter:blur(2px)}
   <div id="detailLoading" class="overlay hidden" aria-hidden="true"><span class="spinner large"></span></div>
 </dialog>
 <dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle"><span class="confirm-icon"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 6 9 7 9-7"/></svg></span></span><h2 id="confirmTitle">Confirmar</h2><p id="confirmText"></p><div class="dialog-actions"><button id="cancelDecision" class="button">Volver</button><button id="confirmDecision" class="button primary">Confirmar y notificar</button></div></dialog>
+<dialog id="resultDialog" class="confirm-dialog result-dialog" aria-labelledby="resultTitle"><span id="resultIcon" class="confirm-icon"></span><h2 id="resultTitle"></h2><p id="resultText"></p><p id="resultReason" class="reason hidden"></p><div class="dialog-actions"><button id="resultMails" class="button hidden">Ver correos</button><button id="resultContinue" class="button primary">Continuar</button></div></dialog>
+<dialog id="viewerDialog" class="viewer-dialog" aria-labelledby="viewerTitle">
+  <header class="viewer-header"><div class="viewer-title"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z"/><path d="M14 3v6h6M8 13h8M8 17h5"/></svg></span><div><h2 id="viewerTitle" tabindex="-1" autofocus>Documento</h2><div id="viewerSub" class="sub"></div></div></div><div class="viewer-actions"><button id="viewerPrev" class="button icon-only" aria-label="Documento anterior" title="Anterior (←)"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m15 5-7 7 7 7"/></svg></span></button><span id="viewerPosition" class="sub"></span><button id="viewerNext" class="button icon-only" aria-label="Documento siguiente" title="Siguiente (→)"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m9 5 7 7-7 7"/></svg></span></button><button id="viewerDownload" class="button"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="M12 3v12m-4-4 4 4 4-4M4 16v5h16v-5"/></svg></span><span class="label">Descargar</span></button><button id="viewerClose" class="button icon-only" aria-label="Cerrar (Esc)" title="Cerrar (Esc)"><span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m6 6 12 12M6 18 18 6"/></svg></span></button></div></header>
+  <div class="viewer-body"><iframe id="viewerFrame" class="hidden" title="Documento" referrerpolicy="no-referrer"></iframe><img id="viewerImage" class="hidden" alt=""><div id="viewerLoading" class="overlay"><div><span class="spinner large"></span><span class="label">Cargando documento…</span></div></div></div>
+</dialog>
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 <script src="/demo.js"></script>
 <script>
@@ -384,13 +439,32 @@ async function loadApplications() {
   $('paginationText').textContent = total ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, total)} de ${total}` : '';
   $('prevPage').disabled = page <= 1; $('nextPage').disabled = page * PAGE_SIZE >= total;
 }
+/* Each tab keeps its own search and filters. */
+const FILTER_FIELDS = ['search','statusFilter','discountFilter','schoolFilter','fromFilter','toFilter'];
+const tabFilters = {};
+function saveTabFilters() { if (VIEWS[view]?.filter) tabFilters[view] = {queue, values:Object.fromEntries(FILTER_FIELDS.map(id => [id, $(id).value]))}; }
+function restoreTabFilters() {
+  const saved = tabFilters[view] || {queue:'', values:{}};
+  FILTER_FIELDS.forEach(id => { $(id).value = saved.values[id] || ''; });
+  queue = saved.queue || '';
+  document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c.dataset.queue === queue));
+}
+function updateClearButton() {
+  const fixed = VIEWS[view]?.filter?.status;
+  const active = FILTER_FIELDS.some(id => $(id).value && !(id === 'statusFilter' && fixed)) || !!queue;
+  $('clearFilters').classList.toggle('hidden', !active);
+}
 async function navigate(next) {
-  view = VIEWS[next] ? next : 'pending'; page = 1; queue = '';
+  saveTabFilters();
+  view = VIEWS[next] ? next : 'pending'; page = 1;
   document.querySelectorAll('.tab').forEach(b => { const on = b.dataset.view === view; b.classList.toggle('active', on); on ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'); });
   $('applicationsPanel').classList.toggle('hidden', view === 'emails'); $('emailsPanel').classList.toggle('hidden', view !== 'emails');
   if (view === 'emails') return loadEmails();
+  restoreTabFilters();
   const fixed = VIEWS[view].filter.status;
-  $('statusFilter').value = fixed || ''; $('statusFilter').disabled = !!fixed;
+  if (fixed) $('statusFilter').value = fixed; $('statusFilter').disabled = !!fixed;
+  $('queueChips').classList.toggle('hidden', view !== 'pending');
+  updateClearButton();
   $('applicationRows').innerHTML = '';
   await loadApplications();
 }
@@ -415,17 +489,37 @@ function documentFile(fileId) {
   }
   return fileCache.get(key);
 }
-async function previewDocument(fileId) {
-  const id = detail.application.id;
-  document.querySelectorAll('[data-preview]').forEach(b => b.closest('li').classList.toggle('active', b.dataset.preview === fileId));
-  $('previewBox').classList.remove('hidden'); $('previewLoading').classList.remove('hidden');
-  try {
-    const file = await documentFile(fileId);
-    if (!detail || detail.application.id !== id) return;
-    releasePreview(); previewObjectUrl = URL.createObjectURL(fileBlob(file));
-    $('documentPreview').src = previewObjectUrl;
-  } finally { $('previewLoading')?.classList.add('hidden'); }
+/* Full-screen document viewer: every document of the application, newest revision first. */
+let viewerList = [], viewerIndex = 0, viewerFile = null;
+function viewerDocuments() {
+  const docs = (detail?.documents || []).slice();
+  return docs.sort((x, y) => Number(y.revision) - Number(x.revision) || (x.kind === 'socioeconomic' ? -1 : 1));
 }
+async function openViewer(fileId) {
+  viewerList = viewerDocuments(); viewerIndex = Math.max(0, viewerList.findIndex(d => d.fileId === fileId));
+  if (!$('viewerDialog').open) $('viewerDialog').showModal();
+  await showViewerDocument();
+}
+async function showViewerDocument() {
+  const d = viewerList[viewerIndex], id = detail.application.id; if (!d) return;
+  $('viewerTitle').textContent = d.kind === 'socioeconomic' ? 'Ficha socioeconómica' : 'Documento sustentatorio';
+  $('viewerSub').textContent = `${detail.application.name} · Revisión ${d.revision} · ${d.name}`;
+  $('viewerPosition').textContent = `${viewerIndex + 1} de ${viewerList.length}`;
+  $('viewerPrev').disabled = viewerIndex <= 0; $('viewerNext').disabled = viewerIndex >= viewerList.length - 1;
+  $('viewerLoading').classList.remove('hidden'); viewerFile = null;
+  try {
+    const file = await documentFile(d.fileId);
+    if (!detail || detail.application.id !== id || viewerList[viewerIndex] !== d) return;
+    releasePreview(); previewObjectUrl = URL.createObjectURL(fileBlob(file)); viewerFile = file;
+    const image = file.mimeType.startsWith('image/');
+    $('viewerImage').classList.toggle('hidden', !image); $('viewerFrame').classList.toggle('hidden', image);
+    if (image) { $('viewerImage').src = previewObjectUrl; $('viewerImage').alt = d.name; $('viewerFrame').src = 'about:blank'; }
+    else { $('viewerFrame').src = previewObjectUrl + '#view=FitH'; $('viewerImage').removeAttribute('src'); }
+  } catch (error) { handle(error); }
+  finally { $('viewerLoading').classList.add('hidden'); }
+}
+function viewerStep(offset) { const next = viewerIndex + offset; if (next < 0 || next >= viewerList.length) return; viewerIndex = next; showViewerDocument(); }
+function closeViewer() { $('viewerFrame').src = 'about:blank'; $('viewerImage').removeAttribute('src'); releasePreview(); viewerFile = null; }
 
 /* ---------- Application ---------- */
 function documentList(documents, current) {
@@ -464,7 +558,6 @@ function renderDetail() {
     ${a.processingError ? `<div class="error">Error al procesar documentos: ${esc(a.processingError)}. El sistema lo reintenta automáticamente.</div>` : ''}
     <dl class="facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
     <h3>Documentos</h3>${documentList(documents, a.revision)}
-    <div id="previewBox" class="preview-box hidden"><iframe id="documentPreview" class="preview" title="Vista previa del documento" referrerpolicy="no-referrer"></iframe><div id="previewLoading" class="overlay hidden"><div><span class="spinner large"></span><span class="label">Cargando documento…</span></div></div></div>
     ${observations.length ? '<h3>Observaciones enviadas</h3><ul class="log">' + observations.map(o => `<li><strong>${esc(o.category)}</strong> · ${esc(o.observation)}<small>${date(o.timestamp)}</small></li>`).join('') + '</ul>' : ''}
     <h3>Envíos del estudiante</h3><ul class="log">${submissions.map(e => `<li>Revisión ${esc(e.revision)}${e.correction ? ' · formulario de corrección' : ''} ${e.status === 'DONE' ? '' : status(e.status)}<small>${date(e.timestamp)}</small>${e.error ? `<small>${esc(e.error)}</small>` : ''}</li>`).join('') || '<li>—</li>'}</ul>
     <h3>Historial</h3><ul class="log">${history.map(h => `<li>${esc(labels[h.toStatus] || h.toStatus)}${h.detail ? ' · ' + esc(h.detail) : ''}<small>${date(h.timestamp)} · ${esc(h.reviewer)}</small></li>`).join('')}</ul>
@@ -472,8 +565,6 @@ function renderDetail() {
     <h3>Correos enviados</h3>${emails.map(m => `<div class="mail"><span><strong>${esc(emailTypes[m.type] || m.type)}</strong><small>${esc(m.recipient)} · ${date(m.sentAt || m.createdAt)}</small></span>${status(m.status)}</div>`).join('') || '<p class="hint">Aún no hay correos.</p>'}
   </section></div>`;
   wireDecision();
-  const first = documents.find(d => Number(d.revision) === Number(a.revision)) || documents[0];
-  if (first && !window.UMA_DEMO) previewDocument(first.fileId).catch(handle);
 }
 function wireDecision() {
   const form = $('reviewForm'); if (!form) return;
@@ -518,20 +609,48 @@ async function confirmDecision() {
   $('confirmDecision').classList.add('is-loading'); $('confirmDecision').disabled = true; $('cancelDecision').disabled = true;
   try {
     const id = pendingDecision.id, position = ids.indexOf(id), approved = pendingDecision.decision === 'APPROVED';
-    await api('saveDecision', pendingDecision);
+    const result = await api('saveDecision', pendingDecision);
     $('confirmDialog').close(); pendingDecision = null;
-    toast(approved ? 'Aprobación guardada. El correo quedó en cola.' : 'Observación guardada. El correo quedó en cola.');
-    await loadApplications();
+    await Promise.all([showEmailResult(result.email, approved ? 'Aprobación guardada' : 'Observación guardada'), loadApplications().catch(handle)]);
     const next = ids.find((x, i) => i >= position && x !== id);
     if (next) await openDetail(next); else { $('detailDialog').close(); toast('No quedan más solicitudes en esta vista.'); }
   } catch (e) { handle(e); } finally { $('confirmDecision').classList.remove('is-loading'); $('confirmDecision').disabled = false; $('cancelDecision').disabled = false; }
 }
 
+/** Tells the reviewer plainly whether the student's email went out, and why not. Resolves when closed. */
+function showEmailResult(email, saved) {
+  email = email || {status:'PENDING'};
+  const sent = email.status === 'SENT', uncertain = email.status === 'UNCERTAIN';
+  $('resultIcon').className = 'confirm-icon ' + (sent ? 'ok' : uncertain ? 'bad' : 'warn');
+  $('resultIcon').innerHTML = sent ? '<span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m5 12 4 4L19 6"/></svg></span>' : '<span class="ui-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false"><path d="m10.3 4-8 14a2 2 0 0 0 1.7 3h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/></svg></span>';
+  $('resultTitle').textContent = sent ? 'Correo enviado' : uncertain ? 'No se pudo confirmar el envío' : 'El correo aún no se envió';
+  $('resultText').textContent = sent
+    ? `${saved}. Google aceptó el correo para ${email.recipient}. Si el estudiante no lo encuentra, que revise Spam y Promociones.`
+    : uncertain ? `${saved}, pero el envío a ${email.recipient || 'el estudiante'} falló o no se pudo confirmar. No se reintenta solo para evitar duplicados; revíselo en Correos.`
+    : `${saved}. El correo para ${email.recipient || 'el estudiante'} quedó en cola y se enviará automáticamente.`;
+  $('resultReason').textContent = email.error ? 'Motivo: ' + email.error : '';
+  $('resultReason').classList.toggle('hidden', !email.error);
+  $('resultMails').classList.toggle('hidden', sent);
+  $('resultDialog').showModal();
+  return new Promise(resolve => { $('resultDialog').addEventListener('close', () => resolve($('resultDialog').returnValue), {once:true}); });
+}
+
 /* ---------- Emails ---------- */
+let emailCache = [];
 async function loadEmails() {
   if (!$('emailRows').children.length) $('emailRows').innerHTML = skeletonRows(6, 5);
-  const rows = await api('listEmails');
-  $('emailRows').innerHTML = rows.length ? rows.map(m => `<tr><td><button class="link code" data-open="${esc(m.applicationId)}">${esc(m.applicationId)}</button></td><td>${esc(m.recipient)}</td><td>${esc(emailTypes[m.type] || m.type)}</td><td>${date(m.sentAt || m.createdAt)}</td><td>${status(m.status)}${m.error ? `<small>${esc(m.error)}</small>` : ''}</td><td class="nowrap">${boot.isAdmin && m.status === 'UNCERTAIN' ? `<button class="button" data-resolve="${esc(m.key)}" data-resolution="CONFIRM_SENT">Marcar enviado</button> <button class="button" data-resolve="${esc(m.key)}" data-resolution="REQUEUE">Reintentar</button>` : ''}</td></tr>`).join('') : '<tr><td colspan="6" class="empty">No hay correos.</td></tr>';
+  emailCache = await api('listEmails');
+  renderEmails();
+}
+function renderEmails() {
+  const q = $('mailSearch').value.trim().toLowerCase(), type = $('mailType').value, state = $('mailStatus').value, from = $('mailFrom').value, to = $('mailTo').value;
+  const limaDay = v => v ? new Date(Date.parse(v) - 5 * 3600000).toISOString().slice(0, 10) : '';
+  const rows = emailCache.filter(m => (!q || [m.applicationId, m.recipient].join(' ').toLowerCase().includes(q)) && (!type || m.type === type) && (!state || m.status === state || (state === 'UNCERTAIN' && m.status === 'SENDING'))
+    && (!from || limaDay(m.sentAt || m.createdAt) >= from) && (!to || limaDay(m.sentAt || m.createdAt) <= to));
+  $('clearMailFilters').classList.toggle('hidden', !(q || type || state || from || to));
+  $('mailCount').textContent = `${rows.length} de ${emailCache.length} correos`;
+  $('emailRows').innerHTML = rows.length ? rows.map(m => `<tr><td><button class="link code" data-open="${esc(m.applicationId)}">${esc(m.applicationId)}</button></td><td>${esc(m.recipient)}</td><td>${esc(emailTypes[m.type] || m.type)}</td><td>${date(m.sentAt || m.createdAt)}</td><td>${status(m.status)}${m.error ? `<small>${esc(m.error)}</small>` : ''}</td><td class="row-actions">${m.status === 'PENDING' ? `<button class="button small" data-send-now="${esc(m.key)}">Enviar ahora</button>` : ''}${boot.isAdmin && m.status === 'UNCERTAIN' ? `<button class="button small" data-resolve="${esc(m.key)}" data-resolution="CONFIRM_SENT">Marcar enviado</button> <button class="button small" data-resolve="${esc(m.key)}" data-resolution="REQUEUE">Reintentar</button>` : ''}</td></tr>`).join('')
+    : `<tr><td colspan="6" class="empty"><strong>No hay correos aquí</strong>${emailCache.length ? 'Cambie los filtros para ver más.' : 'Los correos enviados a los estudiantes aparecerán aquí.'}</td></tr>`;
 }
 
 /* ---------- Start-up and events ---------- */
@@ -541,19 +660,31 @@ async function init() {
   $('actor').textContent = String(boot.actor).replace(/^gestión:/, ''); $('avatar').textContent = initials(boot.actor); $('period').textContent = boot.period;
   $('pausedBanner').classList.toggle('hidden', boot.emailEnabled); $('demoBanner').classList.toggle('hidden', !window.UMA_DEMO);
   choices('statusFilter', boot.states); choices('discountFilter', boot.discounts); choices('schoolFilter', boot.schools);
+  $('queueChips').classList.toggle('hidden', view !== 'pending');
   if (window.UMA_DEMO) $('logoutManagement').classList.add('hidden');
   if (window.UMA_REMOTE) window.UMA_REMOTE.connected();
   const linked = new URLSearchParams(location.hash.slice(1)), applicationId = linked.get('solicitud');
-  if (applicationId) { try { await openDetail(applicationId); if (linked.get('documento')) await previewDocument(linked.get('documento')); } catch (error) { handle(error); } }
+  if (applicationId) { try { await openDetail(applicationId); if (linked.get('documento')) await openViewer(linked.get('documento')); } catch (error) { handle(error); } }
 }
-const reload = () => { page = 1; loadApplications().catch(handle); };
+const reload = () => { page = 1; updateClearButton(); loadApplications().catch(handle); };
 $('navigation').onclick = e => { const tab = e.target.closest('[data-view]'); if (tab) navigate(tab.dataset.view).catch(handle); };
 $('refresh').onclick = e => withButton(e.currentTarget, () => navigate(view)).catch(handle);
-$('moreFilters').onclick = () => { const hidden = $('advancedFilters').classList.toggle('hidden'); $('moreFilters').setAttribute('aria-expanded', String(!hidden)); };
 $('filters').onsubmit = e => { e.preventDefault(); reload(); };
 $('search').oninput = () => { clearTimeout(searchTimer); searchTimer = setTimeout(reload, 300); };
 ['statusFilter','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).onchange = reload);
-$('clearFilters').onclick = () => { ['search','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).value = ''); if (!$('statusFilter').disabled) $('statusFilter').value = ''; queue = ''; reload(); };
+$('clearFilters').onclick = () => { ['search','discountFilter','schoolFilter','fromFilter','toFilter'].forEach(id => $(id).value = ''); if (!$('statusFilter').disabled) $('statusFilter').value = ''; queue = ''; document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c.dataset.queue === '')); reload(); };
+$('queueChips').onclick = e => { const chip = e.target.closest('[data-queue]'); if (!chip) return; queue = chip.dataset.queue; document.querySelectorAll('[data-queue]').forEach(c => c.classList.toggle('active', c === chip)); reload(); };
+$('mailFilters').onsubmit = e => e.preventDefault();
+['mailSearch','mailType','mailStatus','mailFrom','mailTo'].forEach(id => $(id).addEventListener(id === 'mailSearch' ? 'input' : 'change', renderEmails));
+$('clearMailFilters').onclick = () => { ['mailSearch','mailType','mailStatus','mailFrom','mailTo'].forEach(id => $(id).value = ''); renderEmails(); };
+$('refreshMails').onclick = e => withButton(e.currentTarget, loadEmails).catch(handle);
+$('viewerPrev').onclick = () => viewerStep(-1);
+$('viewerNext').onclick = () => viewerStep(1);
+$('viewerClose').onclick = () => $('viewerDialog').close();
+$('viewerDownload').onclick = () => { if (viewerFile) downloadFile(viewerFile); };
+$('viewerDialog').addEventListener('close', closeViewer);
+$('resultContinue').onclick = () => $('resultDialog').close('continue');
+$('resultMails').onclick = () => { $('resultDialog').close('mails'); $('detailDialog').close(); navigate('emails').catch(handle); };
 $('prevPage').onclick = () => { page--; loadApplications().catch(handle); };
 $('nextPage').onclick = () => { page++; loadApplications().catch(handle); };
 $('closeDetail').onclick = () => $('detailDialog').close();
@@ -561,9 +692,11 @@ $('prevDetail').onclick = () => step(-1).catch(handle);
 $('nextDetail').onclick = () => step(1).catch(handle);
 $('cancelDecision').onclick = () => $('confirmDialog').close();
 $('confirmDecision').onclick = confirmDecision;
-$('detailDialog').addEventListener('close', () => { const frame = $('documentPreview'); if (frame) frame.src = 'about:blank'; releasePreview(); detail = null; });
+$('detailDialog').addEventListener('close', () => { if ($('viewerDialog').open) $('viewerDialog').close(); releasePreview(); detail = null; });
 document.addEventListener('keydown', e => {
   const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName);
+  if ($('viewerDialog').open) { if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') { e.preventDefault(); viewerStep(e.key === 'ArrowRight' ? 1 : -1); } return; }
+  if ($('resultDialog').open) return;
   if ($('detailDialog').open && !$('confirmDialog').open && !typing && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) step(e.key === 'ArrowRight' ? 1 : -1).catch(handle);
   if (e.key === 'Enter' && e.target.matches?.('tr[data-open]')) openDetail(e.target.dataset.open).catch(handle);
 });
@@ -573,11 +706,13 @@ document.addEventListener('click', async e => {
   try {
     if (goto) return await navigate(goto.dataset.goto);
     if (e.target.closest('[data-attention]')) { await navigate('pending'); queue = 'attention'; return reload(); }
-    if (open && !$('detailDialog').contains(open)) return await openDetail(open.dataset.open);
-    if (preview) await previewDocument(preview.dataset.preview);
+    if (open && !$('detailDialog').contains(open)) { if ($('detailDialog').open) $('detailDialog').close(); return await openDetail(open.dataset.open); }
+    if (preview) await openViewer(preview.dataset.preview);
     if (download) downloadFile(await documentFile(download.dataset.download));
     if (e.target.closest('[data-ack]')) { await withButton(e.target.closest('[data-ack]'), () => api('acknowledgeIssues', detail.application.id, detail.application.version)); await openDetail(detail.application.id); await loadApplications(); toast('Alertas marcadas como revisadas.'); }
-    if (e.target.id === 'renewCorrection') { await withButton(e.target, () => api('renewCorrection', detail.application.id)); await openDetail(detail.application.id); toast('Nuevo enlace enviado a la cola de correos.'); }
+    if (e.target.id === 'renewCorrection') { const result = await withButton(e.target, () => api('renewCorrection', detail.application.id)); await showEmailResult(result.email, 'Nuevo enlace de corrección generado'); await openDetail(detail.application.id); }
+    const sendNow = e.target.closest('[data-send-now]');
+    if (sendNow) { const result = await withButton(sendNow, () => api('sendEmailNow', sendNow.dataset.sendNow)); await loadEmails(); await showEmailResult(result, 'Envío solicitado'); }
     if (resolve) {
       const note = prompt(resolve.dataset.resolution === 'REQUEUE' ? 'Describa cómo comprobó que el correo no llegó. Reintentar puede duplicarlo.' : 'Describa cómo comprobó que el correo fue enviado.');
       if (note) { await api('resolveEmail', resolve.dataset.resolve, resolve.dataset.resolution, note); await loadEmails(); }

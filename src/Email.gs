@@ -49,6 +49,40 @@ function mailHtml_(body) {
   html+=escapeHtml_(body.slice(last));
   return '<!doctype html><html lang="es"><head><meta charset="UTF-8"></head><body style="margin:0;padding:24px;background:#fff"><div style="font:16px/1.6 Arial,sans-serif;color:#252735;max-width:640px;border-top:3px solid #e91953;padding-top:20px">'+html.replace(/\n/g,'<br>')+'</div></body></html>';
 }
+/** Sends one queued message. Caller holds the script lock and runs as the owner. */
+function sendQueued_(m,a){
+  assert_(validEmail_(m.recipient)&&[a.institutionalEmail,a.personalEmail].indexOf(m.recipient)>=0,'Destinatario de cola inválido');
+  // Upgrade only pending mail, including messages queued before this version. Retain the actual sent text in Correos.
+  m.body=deliveryBody_(m.body,a);
+  m.status='SENDING';m.attempts=Number(m.attempts||0)+1;m.attemptedAt=now_();put_('Correos',m);SpreadsheetApp.flush();
+  try{
+    MailApp.sendEmail({to:m.recipient,subject:m.subject,body:m.body,htmlBody:mailHtml_(m.body),name:'Tesorería UMA',replyTo:UMA.owner});
+    m.status='SENT';m.sentAt=now_();m.error='';
+  }catch(e){
+    // MailApp has no idempotency key or delivery receipt: an exception may follow acceptance.
+    m.status='UNCERTAIN';m.error=String(e.message).slice(0,1500);error_('SEND_EMAIL',m.key,e);
+  }
+  put_('Correos',m);if(m.type!=='RECEIVED'){a.emailStatus=m.status;saveApplication_(a);}audit_(UMA.owner,'EMAIL_'+m.status,a.id,m.key);
+  return m;
+}
+/**
+ * Delivers a just-queued message right away so Treasury sees the real result instead of waiting for the
+ * minute trigger. When it cannot send now, the message stays PENDING for the trigger and the reason is returned.
+ * Caller holds the script lock.
+ */
+function sendNow_(key){
+  var m=find_('Correos','key',key);if(!m)return {status:'NONE',error:'No se generó ningún correo.'};
+  var result=function(x,error){return {status:x.status,error:error||x.error||'',recipient:x.recipient,type:x.type};};
+  if(m.status!=='PENDING')return result(m);
+  var reason='';
+  if(normalizeEmail_(Session.getEffectiveUser().getEmail())!==UMA.owner)reason='Se enviará desde la cuenta de Tesorería en el próximo minuto.';
+  else if(config_().EMAIL_NOTIFICATION_ENABLED!=='true')reason='El envío de correos está pausado (EMAIL_NOTIFICATION_ENABLED). El correo quedó en cola.';
+  else if(MailApp.getRemainingDailyQuota()<=0)reason='Se agotó la cuota diaria de correos de la cuenta de envío. Se enviará automáticamente cuando Google la renueve.';
+  if(reason)return result(m,reason);
+  var a=application_(m.applicationId);
+  if(m.type!=='RECEIVED'&&a.lastDecisionKey!==m.decisionKey)return result(m,'La decisión aún no se registró por completo; el correo quedó en cola.');
+  return result(sendQueued_(m,a));
+}
 /** Install this time-driven trigger while signed in as UMA.owner. */
 function processEmailQueue(e) {
   owner_(e,'processEmailQueue');
@@ -71,18 +105,7 @@ function processEmailQueue(e) {
         var j=find_('Decisiones','key',m.decisionKey);if(j&&j.status!=='DONE')return;
         m.status='CANCELLED';m.error='Notificación reemplazada por una decisión posterior';put_('Correos',m);return;
       }
-      assert_(validEmail_(m.recipient)&&[a.institutionalEmail,a.personalEmail].indexOf(m.recipient)>=0,'Destinatario de cola inválido');
-      // Upgrade only pending mail, including messages queued before this version. Retain the actual sent text in Correos.
-      m.body=deliveryBody_(m.body,a);
-      m.status='SENDING';m.attempts=Number(m.attempts)+1;m.attemptedAt=now_();put_('Correos',m);SpreadsheetApp.flush();
-      try{
-        MailApp.sendEmail({to:m.recipient,subject:m.subject,body:m.body,htmlBody:mailHtml_(m.body),name:'Tesorería UMA',replyTo:UMA.owner});
-        m.status='SENT';m.sentAt=now_();m.error='';quota--;sent++;
-      }catch(e){
-        // MailApp has no idempotency key or delivery receipt: an exception may follow acceptance.
-        m.status='UNCERTAIN';m.error=String(e.message).slice(0,1500);error_('SEND_EMAIL',m.key,e);
-      }
-      put_('Correos',m);if(!receipt){a.emailStatus=m.status;saveApplication_(a);}audit_(UMA.owner,'EMAIL_'+m.status,a.id,m.key);
+      var done=sendQueued_(m,a);m.status=done.status;if(done.status==='SENT'){quota--;sent++;}
     });
     if(!logs.some(function(m){return m.status==='PENDING'||m.status==='SENDING';}))properties_().setProperty('MAIL_QUEUE_STATE','idle');
     return {sent:sent,remainingQuota:quota};
@@ -95,4 +118,8 @@ function resolveEmail(key,resolution,note) {
     var a=application_(m.applicationId),receipt=m.type==='RECEIVED';assert_(receipt||a.lastDecisionKey===m.decisionKey,'El mensaje quedó obsoleto');
     if(resolution==='CONFIRM_SENT'){m.status='SENT';m.sentAt=now_();}else{m.status='PENDING';markMailQueue_();}
     m.error=cleanText_(note,2000);put_('Correos',m);if(!receipt){a.emailStatus=m.status;saveApplication_(a);}audit_(actor,'EMAIL_'+resolution,a.id,note);return {status:m.status};});
+}
+/** Treasury action from the Correos tab: send a queued message now instead of waiting for the trigger. */
+function sendEmailNow(key){
+  reviewer_();return locked_(function(){var m=find_('Correos','key',key);assert_(m,'Correo no encontrado');assert_(m.status==='PENDING','Solo se envían ahora correos en cola');return sendNow_(key);});
 }

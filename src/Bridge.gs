@@ -11,7 +11,7 @@ function bridgeCall(request) {
     listEmails:listEmails, listAudit:listAudit, updateSettings:updateSettings,
     saveDecision:saveDecision, setReviewStatus:setReviewStatus, renewCorrection:renewCorrection,
     resolveEmail:resolveEmail, exportExcel:exportExcel, runSystemHealthCheck:runSystemHealthCheck,
-    getDocumentFile:getDocumentFile,acknowledgeIssues:acknowledgeIssues,listUnlinkedSubmissions:listUnlinkedSubmissions,logoutManagement:function(){return logoutManagement_(request.token);}
+    getDocumentFile:getDocumentFile,acknowledgeIssues:acknowledgeIssues,listUnlinkedSubmissions:listUnlinkedSubmissions,sendEmailNow:sendEmailNow,logoutManagement:function(){return logoutManagement_(request.token);}
   };
   assert_(Object.prototype.hasOwnProperty.call(methods,request.method), 'Operación no permitida');
   if(config_().MANAGEMENT_AUTH_ENABLED!=='true'){reviewer_();return methods[request.method].apply(null,args);}
