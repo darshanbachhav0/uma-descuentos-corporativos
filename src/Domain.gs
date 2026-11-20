@@ -71,6 +71,7 @@ function filtered_(rows, f) {
       (!f.queue || (f.queue==='review' && UMA.reviewStates.indexOf(a.status)>=0) || (f.queue==='waiting' && a.status==='OBSERVADA') || (f.queue==='attention' && needsAttention_(a))) &&
       (!f.from || day>=f.from) && (!f.to || day<=f.to);
   }).sort(function(a,b){
+    if(f.pendingOnly){var ra=UMA.reviewStates.indexOf(a.status)>=0?0:1,rb=UMA.reviewStates.indexOf(b.status)>=0?0:1;if(ra!==rb)return ra-rb;}
     var ta=String(a.lastSubmissionAt||a.createdAt), tb=String(b.lastSubmissionAt||b.createdAt);
     return tb.localeCompare(ta);
   });

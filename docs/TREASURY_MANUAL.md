@@ -2,6 +2,13 @@
 
 ## Cómo se organizan las solicitudes
 
+El panel tiene cuatro pestañas:
+
+- **Pendientes:** todo lo que aún no termina: solicitudes nuevas, reenvíos de estudiantes y observadas que esperan la corrección del estudiante. Primero aparecen las que necesitan a Tesorería.
+- **Aplicadas en SIGU:** procesos terminados.
+- **Todas:** Pendientes + Aplicadas en SIGU.
+- **Correos:** los correos enviados a los estudiantes.
+
 - **Una solicitud por correo institucional y periodo.** Si un estudiante envía el formulario varias veces con el mismo correo institucional, cada envío se añade a la misma solicitud como una nueva **revisión**. La columna “Envíos” muestra cuántos hay.
 - **Ningún envío se descarta.** Si un envío tiene datos inválidos (por ejemplo, un DNI que no tiene 8 dígitos), la solicitud aparece igual con **alertas**.
 - **Pendientes** incluye todo lo que aún no se aplica en SIGU, también las **observadas**. Una solicitud observada sigue pendiente hasta que el estudiante corrige y Tesorería la aprueba.
@@ -9,12 +16,12 @@
 ## Revisión
 
 1. Ingrese con el usuario y contraseña entregados.
-2. Abra la pestaña **Por revisar** y haga clic en una fila. La ficha de la revisión actual se muestra en la vista previa. Las flechas ← → pasan a la solicitud anterior o siguiente.
+2. Abra la pestaña **Pendientes** (aparecen primero las que esperan a Tesorería; use el filtro rápido **Por revisar** si solo quiere esas) y haga clic en una fila. La ficha de la revisión actual se muestra en la vista previa. Las flechas ← → pasan a la solicitud anterior o siguiente.
 3. Si hay alertas, revíselas y pulse **Marcar como revisadas** cuando corresponda.
 4. **Aprobar:** registre primero el descuento en SIGU. Elija **Aprobar**, marque la confirmación y pulse **Guardar y notificar**.
 5. **Observar:** elija **Observar** y un motivo. Se propone un texto para el estudiante (qué falta y qué debe enviar); edítelo si hace falta y pulse **Guardar y notificar**. El estudiante recibe el correo con un enlace seguro de corrección; también puede volver a enviar el formulario inicial con su correo institucional.
 6. Al guardar se abre la siguiente solicitud de la lista.
-7. Cuando el estudiante corrige, la solicitud pasa a **Corrección recibida** y vuelve a **Por revisar**.
+7. Cuando el estudiante corrige, la solicitud pasa a **Corrección recibida** y vuelve al inicio de **Pendientes** para revisarla de nuevo.
 
 Si un estudiante envía el formulario después de la aplicación en SIGU, la solicitud conserva **Aplicada en SIGU** y muestra una alerta.
 

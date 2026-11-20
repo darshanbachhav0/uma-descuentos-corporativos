@@ -7,7 +7,7 @@ El logotipo `src/assets/uma-logo.jpg` (proporcionado por el usuario, sin alterar
 ## Pantallas
 
 - **Ingreso:** usuario, contraseña e Ingresar (`web/Gate.html`, `web/site.css`).
-- **Pestañas:** Pendientes, Por revisar, Observadas, Aplicadas en SIGU, Todas y Correos, cada una con su contador.
+- **Pestañas:** Pendientes, Aplicadas en SIGU, Todas y Correos. Pendientes tiene filtros rápidos (Por revisar, Esperando al estudiante, Con alertas).
 - **Lista:** búsqueda y filtros en una línea, tabla con código, estudiante, correo institucional, convenio, envíos, último envío y estado.
 - **Solicitud:** datos, alertas, documentos por revisión con vista previa, envíos, historial y, a la derecha, la decisión (Aprobar u Observar con un único texto para el estudiante) y los correos.
 

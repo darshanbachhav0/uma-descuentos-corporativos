@@ -105,3 +105,9 @@ test('the retired "Validada, pendiente SIGU" status is migrated to En revisión 
   assert.equal(s.db.Historial_Estados.filter(h=>/retirado/.test(h.detail)).length,1);
   assert.equal(s.ctx.listApplications({queue:'review'},1,20).total,1);
 });
+
+test('Pendientes lists cases that need Treasury before cases waiting for the student',()=>{
+  const c=createSystem().ctx,rows=[{id:'waiting',status:'OBSERVADA',createdAt:'2026-11-20T10:00:00Z'},{id:'old-review',status:'RECIBIDA',createdAt:'2026-11-01T10:00:00Z'},{id:'resent',status:'CORRECCION_RECIBIDA',createdAt:'2026-11-10T10:00:00Z',lastSubmissionAt:'2026-11-19T10:00:00Z'},{id:'done',status:'APLICADA_SIGU',createdAt:'2026-11-21T10:00:00Z'}];
+  assert.deepEqual(c.filtered_(rows,{pendingOnly:true}).map(a=>a.id),['resent','old-review','waiting']);
+  assert.deepEqual(c.filtered_(rows,{}).map(a=>a.id),['done','waiting','resent','old-review']);
+});

@@ -62,7 +62,7 @@ Cada respuesta del formulario inicial se asocia a la solicitud del periodo con e
 
 Al desplegar esta versión, `reconcileSubmissions` ejecuta una vez `migrateToEmailGrouping_`: los envíos que la versión anterior marcó como `DUPLICATE_APPLICATION` o que fallaron sin solicitud se vuelven a procesar y se agrupan. `regroupSubmissionsByEmail` lo hace de inmediato desde el editor.
 
-`Pendientes` = todo estado distinto de `APLICADA_SIGU` (incluye `OBSERVADA`). `Por revisar` excluye `OBSERVADA`, que espera al estudiante.
+`Pendientes` = todo estado distinto de `APLICADA_SIGU` (incluye `OBSERVADA`). El filtro rápido `Por revisar` excluye `OBSERVADA`, que espera al estudiante.
 
 ## Rendimiento
 
