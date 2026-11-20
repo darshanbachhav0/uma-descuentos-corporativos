@@ -73,7 +73,9 @@ Las filas y las respuestas de formularios no se pueden recuperar. Los archivos d
 
 ## Ordenar la hoja de cálculo (una sola vez, solo el propietario)
 
-Deja la hoja “UMA — Control de Descuentos Corporativos” solo con **Form Responses 1** (las respuestas del formulario de solicitud).
+Deja la hoja “UMA — Control de Descuentos Corporativos” con una sola pestaña, **Respuestas de estudiantes**: una fila por estudiante (agrupada por correo institucional) con sus datos más recientes, el estado, y una columna **Envío 1, Envío 2, …** por cada envío, en orden de fecha, con enlaces a sus documentos. Se actualiza sola con cada envío y cada decisión.
+
+El formulario sigue funcionando igual; solo deja de escribir la pestaña automática de Google (una fila por envío), que se elimina. Las respuestas originales siguen guardadas en Google Forms.
 
 1. Pegue el `dist/Code.gs` más reciente en Apps Script y guarde.
 2. Elija la función `organizeSpreadsheet` y pulse **Ejecutar** (cuando nadie esté usando el panel).

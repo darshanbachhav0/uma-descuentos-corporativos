@@ -35,7 +35,7 @@ function applyDecision_(j) {
   }
   queueDecisionEmail_(a,d.decision,j.key);
   // Queue dispatch checks lastDecisionKey; a half-written decision cannot send email.
-  saveApplication_(a);j.status='DONE';j.error='';put_('Decisiones',j);
+  saveApplication_(a);j.status='DONE';j.error='';put_('Decisiones',j);syncStudentRowSafely_(a);
   audit_(j.reviewer,'REVIEW_'+d.decision,a.id,old+' → '+a.status);
 }
 function recoverDecisions_(){rows_('Decisiones').filter(function(j){return j.status==='PENDING';}).slice(0,20).forEach(function(j){try{applyDecision_(j);}catch(e){j.error=e.message;put_('Decisiones',j);error_('DECISION_RECOVERY',j.key,e);}});}
