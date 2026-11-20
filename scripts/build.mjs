@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import {renderIcons} from './icons.mjs';
 const root=process.cwd();
 const target=path.join(root,'dist');fs.mkdirSync(target,{recursive:true});
@@ -21,7 +22,11 @@ if(!/^https:\/\/[a-z0-9-]+\.onrender\.com$/.test(config.apiUrl||''))throw new Er
 const unwrap=(text,tag)=>text.replace(new RegExp('^<'+tag+'>\\s*'),'').replace(new RegExp('\\s*</'+tag+'>\\s*$'),'');
 const gate=renderIcons(fs.readFileSync('web/Gate.html','utf8'));
 const staticHtml=html.Dashboard.replace("<?!= include_('Logo'); ?>",'/uma-logo.jpg').replace("<?!= include_('Styles'); ?>",'<link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/site.css">').replace('<body>','<body>\n'+gate).replace('<div class="app">','<div class="app" id="workspaceApp" inert>').replace("<?!= include_('Client'); ?>",'<script src="/transport.js"></script><script src="/client.js"></script>');
-fs.writeFileSync(path.join(publish,'index.html'),staticHtml);
+// Version every asset URL by content hash: CDN caches can never mix an old script with a new page.
+const assetVersion=text=>crypto.createHash('sha256').update(text).digest('hex').slice(0,10);
+const versions={'/styles.css':assetVersion(unwrap(html.Styles,'style')),'/client.js':assetVersion(unwrap(html.Client,'script')),'/site.css':assetVersion(fs.readFileSync('web/site.css')),'/transport.js':assetVersion(fs.readFileSync('web/transport.js'))};
+const versionedHtml=Object.entries(versions).reduce((h,[url,v])=>h.split('"'+url+'"').join('"'+url+'?v='+v+'"'),staticHtml);
+fs.writeFileSync(path.join(publish,'index.html'),versionedHtml);
 fs.writeFileSync(path.join(publish,'styles.css'),unwrap(html.Styles,'style'));
 fs.writeFileSync(path.join(publish,'client.js'),unwrap(html.Client,'script'));
 fs.writeFileSync(path.join(publish,'config.json'),JSON.stringify(config,null,2));

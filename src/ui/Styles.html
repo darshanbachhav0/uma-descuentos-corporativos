@@ -225,6 +225,15 @@ dialog::backdrop{background:#20242d80;backdrop-filter:blur(2px)}
 .confirm-icon.bad{background:var(--bad-soft);color:var(--bad)}
 .reason{background:#fafbfc;border:1px solid var(--line);border-radius:8px;padding:10px 12px;color:var(--ink-2)!important;font-size:13px}
 
+/* Toast above dialogs (popover top layer) and confirm feedback */
+#toast[popover]{inset:auto;bottom:20px;left:50%;margin:0;border:0;overflow:visible;width:max-content}
+.sending{display:flex;align-items:center;gap:10px;color:var(--brand-dark);font-weight:500;margin:0 0 4px}
+.sending .spinner{color:var(--brand)}
+.confirm-dialog .error{margin:12px 0 0;font-size:13px}
+
+.mail-side{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.mail-error{color:var(--warn)!important}
+
 /* Responsive */
 @media(max-width:1000px){
   .detail-grid{grid-template-columns:1fr}
