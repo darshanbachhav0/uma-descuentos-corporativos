@@ -15,7 +15,7 @@ function withResetFakes(s){
     return {setTrashed(){trashed.add(id);}};
   };
   s.ctx.clearTable_=name=>{s.db[name].length=0;};
-  s.ctx.book_=()=>({getSheets:()=>[linked,{getFormUrl:()=>null}]});
+  s.ctx.responsesBook_=()=>({getSheets:()=>[linked,{getFormUrl:()=>null}]});
   return {trashed,deletedForms,linked};
 }
 

@@ -553,6 +553,72 @@ function exportExcel(filter) {
 function managementLink_(id,fileId){var origin=String(config_().FRONTEND_ORIGINS||'').split(',')[0];assert_(allowedFrontend_(origin),'Origen de plataforma no configurado');return origin+'/#solicitud='+encodeURIComponent(id)+(fileId?'&documento='+encodeURIComponent(fileId):'');}
 
 
+// --- Organize.gs ---
+/**
+ * Owner action, run once from the Apps Script editor: organizeSpreadsheet()
+ *
+ * Leaves the main spreadsheet with only the response tab of the application form ("Form Responses 1").
+ * The platform's own tables (Solicitudes, Documentos, Eventos, ...) are moved to a separate private
+ * spreadsheet, "UMA — Datos del sistema (no editar)", inside the system's Drive folder. The old correction
+ * form stops writing into the main spreadsheet and its response tab is removed, as are empty default tabs.
+ * Safe to run again: every step checks what is already done. Never exposed to the panel or the API.
+ */
+var UMA_SYSTEM_BOOK_NAME_ = 'UMA — Datos del sistema (no editar)';
+
+function organizeSpreadsheet() {
+  setupOwner_();
+  return locked_(function(){
+    var c = config_(), p = properties_(), main = SpreadsheetApp.openById(c.SPREADSHEET_ID), report = {moved:[], removed:[], kept:[]};
+    // 1. The system spreadsheet: reuse the one already recorded (finished or interrupted run) or create it privately.
+    var systemId = c.SYSTEM_SPREADSHEET_ID || p.getProperty('SYSTEM_SPREADSHEET_ID_PENDING'), system;
+    if (systemId) system = SpreadsheetApp.openById(systemId);
+    else {
+      system = SpreadsheetApp.create(UMA_SYSTEM_BOOK_NAME_);
+      if (system.setSpreadsheetTimeZone) system.setSpreadsheetTimeZone('America/Lima');
+      var file = DriveApp.getFileById(system.getId());
+      if (c.ROOT_DRIVE_FOLDER_ID) file.moveTo(DriveApp.getFolderById(c.ROOT_DRIVE_FOLDER_ID));
+      file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.NONE);
+      p.setProperty('SYSTEM_SPREADSHEET_ID_PENDING', system.getId());
+    }
+    // 2. Copy every system table still in the main spreadsheet, switch storage, then delete the originals.
+    // If storage was already switched (an earlier run stopped halfway), the originals are stale: just delete them.
+    var names = Object.keys(UMA.schema), switched = !!c.SYSTEM_SPREADSHEET_ID, originals = [];
+    names.forEach(function(name){
+      var source = main.getSheetByName(name); if (!source) return;
+      if (!switched) {
+        var target = system.getSheetByName(name);
+        if (!target) { target = source.copyTo(system); target.setName(name); }
+        assert_(target.getLastRow() === source.getLastRow(), 'La copia de ' + name + ' no coincide; no se borró nada. Vuelva a ejecutar organizeSpreadsheet.');
+      }
+      originals.push(source);
+    });
+    p.setProperty('SYSTEM_SPREADSHEET_ID', system.getId()); p.setProperty('SYSTEM_SPREADSHEET_ID_PENDING', '');
+    UMA_MEMO_ = {};
+    originals.forEach(function(sheet){ report.moved.push(sheet.getName()); main.deleteSheet(sheet); });
+    // A new spreadsheet starts with an empty default tab; drop it once the tables are there.
+    system.getSheets().forEach(function(s){ if (names.indexOf(s.getName()) < 0 && s.getLastRow() === 0 && system.getSheets().length > 1) system.deleteSheet(s); });
+    // 3. The correction form no longer writes into the main spreadsheet; its response tab goes away.
+    if (c.CORRECTION_FORM_ID) {
+      var correction = FormApp.openById(c.CORRECTION_FORM_ID), destination = '';
+      try { destination = correction.getDestinationId(); } catch (e) { destination = ''; }
+      var linked = main.getSheets().filter(function(s){ var url = ''; try { url = s.getFormUrl() || ''; } catch (e) {} return url.indexOf(c.CORRECTION_FORM_ID) >= 0; });
+      if (destination === c.SPREADSHEET_ID) correction.removeDestination();
+      linked.forEach(function(s){ report.removed.push(s.getName()); main.deleteSheet(s); });
+    }
+    // 4. Empty tabs that are not linked to a form (e.g. "Sheet1"). Anything with data is kept and reported.
+    main.getSheets().forEach(function(s){
+      var url = ''; try { url = s.getFormUrl() || ''; } catch (e) {}
+      if (url) { report.kept.push(s.getName()); return; }
+      if (s.getLastRow() === 0 && main.getSheets().length > 1) { report.removed.push(s.getName()); main.deleteSheet(s); }
+      else report.kept.push(s.getName() + ' (tiene datos; no se borró)');
+    });
+    report.systemSpreadsheet = 'https://docs.google.com/spreadsheets/d/' + system.getId() + '/edit';
+    audit_(UMA.owner, 'SPREADSHEET_ORGANIZED', '', JSON.stringify(report).slice(0, 2000));
+    console.log(JSON.stringify(report, null, 2)); return report;
+  });
+}
+
+
 // --- Reset.gs ---
 /**
  * Test-data reset, run by the owner from the Apps Script editor. Never exposed to the panel or the API.
@@ -628,7 +694,7 @@ function resetForms_() {
 }
 /** The "Form Responses" tabs Google Forms writes into the same spreadsheet. */
 function linkedResponseSheets_() {
-  return book_().getSheets().filter(function(s){ try { return !!s.getFormUrl(); } catch (e) { return false; } });
+  return responsesBook_().getSheets().filter(function(s){ try { return !!s.getFormUrl(); } catch (e) { return false; } });
 }
 function resetLinkedResponseSheets_() {
   linkedResponseSheets_().forEach(function(s){ var last = s.getLastRow(); if (last > 2) s.deleteRows(3, last - 2); if (last > 1) s.getRange(2, 1, 1, s.getMaxColumns()).clearContent(); });
@@ -707,7 +773,7 @@ function initializeProject() {
     if(!c.CORRECTION_FORM_ID)p.setProperty('CORRECTION_FORM_ID',createForm_(true).getId());
     c=config_();
     [['GOOGLE_FORM_ID',false],['CORRECTION_FORM_ID',true]].forEach(function(pair){
-      var form=FormApp.openById(c[pair[0]]);linkResponseDestination_(form,c.SPREADSHEET_ID);
+      var form=FormApp.openById(c[pair[0]]);if(!(pair[1]&&c.SYSTEM_SPREADSHEET_ID))linkResponseDestination_(form,c.SPREADSHEET_ID);
       mapQuestions_(form,pair[1]);
     });
     audit_(UMA.owner,'INITIALIZED','','Recursos creados o conservados');
@@ -838,7 +904,8 @@ function privacyNotice_(){return config_().PRIVACY_NOTICE||'Sus datos y document
 // Sheets persistence. Each Apps Script execution reads a table once and keeps the values in memory;
 // writes update that copy, and acquiring the script lock discards it so locked work always sees fresh data.
 var UMA_MEMO_ = {};
-function book_() { var id=config_().SPREADSHEET_ID; assert_(id,'Ejecute initializeProject primero'); if(!UMA_MEMO_.__book)UMA_MEMO_.__book=SpreadsheetApp.openById(id); return UMA_MEMO_.__book; }
+/** System tables. After organizeSpreadsheet they live in a separate private spreadsheet. */
+function book_() { var c=config_(),id=c.SYSTEM_SPREADSHEET_ID||c.SPREADSHEET_ID; assert_(id,'Ejecute initializeProject primero'); if(!UMA_MEMO_.__book)UMA_MEMO_.__book=SpreadsheetApp.openById(id); return UMA_MEMO_.__book; }
 function table_(name) { var s=book_().getSheetByName(name);assert_(s,'Falta la hoja '+name);return s; }
 function forgetTables_() { var b=UMA_MEMO_.__book; UMA_MEMO_={}; if(b)UMA_MEMO_.__book=b; }
 /** Loads a table once per execution and appends any schema column added by a newer version. */
@@ -895,6 +962,8 @@ function clearTable_(name) {
   if(last>1)s.getRange(2,1,1,s.getMaxColumns()).clearContent();
   delete UMA_MEMO_['t:'+name];
 }
+/** The spreadsheet Google Forms writes responses into ("Form Responses 1"). */
+function responsesBook_() { var id=config_().SPREADSHEET_ID; assert_(id,'Ejecute initializeProject primero'); return SpreadsheetApp.openById(id); }
 
 
 // --- Submissions.gs ---
@@ -924,9 +993,20 @@ function ingest_(response,correction) {
     try{
       var data=readResponse_(response,correction),a,issues=[],info=null,submittedAt=response.getTimestamp().toISOString();
       if(correction){
-        a=application_(cleanText_(data.values.applicationId));
-        if(!event.applicationId){
-          validateCorrection_(a,data.values,cfg);
+        if(event.applicationId)a=application_(event.applicationId);
+        else{
+          // The old correction form is no longer sent. A response that does not pass its code check is grouped
+          // by institutional email, the same rule as the main form, instead of failing forever.
+          try{a=application_(cleanText_(data.values.applicationId));validateCorrection_(a,data.values,cfg);}
+          catch(codeError){
+            a=studentApplication_({institutionalEmail:data.values.institutionalEmail,personalEmail:'',identityType:'',identityNumber:data.values.identityNumber},cfg.ACADEMIC_PERIOD);
+            if(!a){
+              // Nothing to attach it to: close the event so it is not retried, but keep a trace in Errores.
+              event.status='DONE';event.error='DISCARDED: '+codeError.message;event.retryAt='';put_('Eventos',event);
+              error_('CORRECTION_DISCARDED',key,new Error('Formulario de corrección sin solicitud asociada ('+codeError.message+')'));return '';
+            }
+            issues.push('Enviado con el formulario de corrección anterior; se asoció por correo institucional');
+          }
           assert_(!rows_('Eventos').some(function(prior){return prior.applicationId===a.id&&prior.formId===formId&&prior.status!=='DONE';}),'Existe una subsanación en proceso. Tesorería debe resolver ese envío primero.');
           event.applicationId=a.id;event.revision=nextRevision_(a);put_('Eventos',event);
         }
@@ -954,7 +1034,9 @@ function ingest_(response,correction) {
       if(correction){
         if(!committed){a.revision=revision;a.version=Number(a.version)+1;a.submissions=Number(a.submissions||1)+1;a.lastSubmissionAt=submittedAt;}
         a.lastCorrectionAt=a.lastCorrectionAt||now_();a.correctionExpiresAt='';a.issues=issueText_(revision,issues);
-        transition_(a,'CORRECCION_RECIBIDA',a.recipient,cleanText_(data.values.clarification),key+':status');
+        // An approved discount is never reopened by a late correction; it only gets an alert.
+        if(a.status==='APLICADA_SIGU'){a.issues=issueText_(revision,['Nuevo envío recibido después de aplicar el descuento en SIGU'].concat(issues));transition_(a,'APLICADA_SIGU',a.recipient,'Envío del formulario de corrección',key+':status');}
+        else transition_(a,'CORRECCION_RECIBIDA',a.recipient,cleanText_(data.values.clarification),key+':status');
       }else if(revision===1){
         a.issues=issueText_(1,issues);
         if(!find_('Historial_Estados','key',key+':status'))transition_(a,'RECIBIDA',UMA.owner,'Recepción inicial',key+':status');
@@ -1013,6 +1095,7 @@ function reconcileSubmissions(e) {
   locked_(recoverDecisions_);
   if(p.getProperty('DATA_MODEL')!=='email-v2')locked_(migrateToEmailGrouping_);
   if(p.getProperty('STATUS_MODEL')!=='v2')locked_(migrateRetiredStatus_);
+  if(p.getProperty('EVENTS_RETRY')!=='v3')locked_(function(){rows_('Eventos').filter(function(e){return e.status!=='DONE'&&!e.applicationId;}).forEach(function(e){e.retryAt='';put_('Eventos',e);});p.setProperty('EVENTS_RETRY','v3');});
   [false,true].forEach(function(correction){
     var key=correction?'CORRECTION_FORM_ID':'GOOGLE_FORM_ID',cursorKey='CURSOR_'+key;
     var since=Number(p.getProperty(cursorKey)||0),cutoff=Date.now();

@@ -72,7 +72,7 @@ function resetForms_() {
 }
 /** The "Form Responses" tabs Google Forms writes into the same spreadsheet. */
 function linkedResponseSheets_() {
-  return book_().getSheets().filter(function(s){ try { return !!s.getFormUrl(); } catch (e) { return false; } });
+  return responsesBook_().getSheets().filter(function(s){ try { return !!s.getFormUrl(); } catch (e) { return false; } });
 }
 function resetLinkedResponseSheets_() {
   linkedResponseSheets_().forEach(function(s){ var last = s.getLastRow(); if (last > 2) s.deleteRows(3, last - 2); if (last > 1) s.getRange(2, 1, 1, s.getMaxColumns()).clearContent(); });
