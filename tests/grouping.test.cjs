@@ -93,3 +93,15 @@ test('a journal stuck by a missing recipient is closed and no longer blocks the 
   const result=s.ctx.saveDecision({requestId:'after-fix-0001',id:fixed.id,version:fixed.version,decision:'APPROVED',siguConfirmed:true});
   assert.equal(result.status,'APLICADA_SIGU');assert.equal(result.email.status,'SENT');
 });
+
+test('the retired "Validada, pendiente SIGU" status is migrated to En revisión and can no longer be set',()=>{
+  const s=createSystem(),a=submit(s,'retired');
+  s.db.Solicitudes[0].status='VALIDADA_PENDIENTE_SIGU';
+  assert.ok(!s.ctx.UMA.states.includes('VALIDADA_PENDIENTE_SIGU'));
+  assert.throws(()=>s.ctx.setReviewStatus(a.id,s.db.Solicitudes[0].version,'VALIDADA_PENDIENTE_SIGU'),/Estado/);
+  s.ctx.FormApp.openById=()=>({getResponses:()=>[],getResponse:()=>null});
+  s.ctx.reconcileSubmissions();s.ctx.reconcileSubmissions();
+  assert.equal(s.ctx.application_(a.id).status,'EN_REVISION');
+  assert.equal(s.db.Historial_Estados.filter(h=>/retirado/.test(h.detail)).length,1);
+  assert.equal(s.ctx.listApplications({queue:'review'},1,20).total,1);
+});
