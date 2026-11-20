@@ -3,7 +3,7 @@
 | Síntoma | Comprobación y acción |
 | --- | --- |
 | Sitio Render carga, pero Google está pendiente | Configure `appsScriptUrl` con la URL `/exec` real; vuelva a desplegar Render |
-| Conexión integrada no responde | Compruebe que el servicio use USER_DEPLOYING/ANYONE_ANONYMOUS y que el origen de Render sea correcto; no requiere sesión Google |
+| Conexión integrada no responde | Compruebe apiUrl, el servicio API de Render y su /healthz. No usa iframe ni cookies Google. Tras inactividad el servicio gratuito puede tardar en iniciar; el botón se recupera al alcanzar el plazo |
 | Origen no autorizado | `FRONTEND_ORIGINS` debe contener el origen exacto de Render, sin barra final ni ruta |
 | Identidad vacía o acceso denegado | Ingrese nuevamente con usuario y contraseña; compruebe MANAGEMENT_AUTH_ENABLED y las propiedades privadas de acceso |
 | clasp bloquea push/deploy | Habilite Apps Script API en la configuración de usuario de la cuenta propietaria |

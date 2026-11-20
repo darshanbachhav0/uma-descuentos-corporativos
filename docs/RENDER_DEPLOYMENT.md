@@ -38,3 +38,9 @@ Ejecute `node scripts/verify-deployment.mjs` para verificar las páginas públic
 La cuenta de Render y la de envío previstas son darshanbachhavapp@gmail.com. La autorización de Render no concede acceso a Google: cada proveedor tiene su consentimiento independiente.
 
 El servicio de Apps Script se ejecuta como propietario (`USER_DEPLOYING`) con acceso web `ANYONE_ANONYMOUS`. El sitio presenta exclusivamente usuario/contraseña, y la API rechaza toda operación de datos sin su sesión de gestión. Las credenciales de Google permanecen en Google. Si cambia una cabecera revisada de render.yaml, aplique `python scripts/configure-render.py --update-existing`; las demás reglas existentes se conservan.
+
+## API de gestión sin dependencia de la sesión Google del navegador
+
+El sitio conserva hosting estático. El segundo servicio de render.yaml usa Node y plan free para retransmitir JSON autenticado a doPost de Apps Script. Publica /healthz y /rpc, con CORS restringido al origen del sitio. No guarda datos ni tokens de Google y no requiere una base de datos. apiUrl en deploy/public-config.json debe coincidir con su URL real; CSP connect-src debe permitir solo ese origen adicional. El plan gratuito puede iniciar lentamente después de inactividad; no se habilita un plan de pago automáticamente.
+
+Prueba de integración: scripts/check-live-login.mjs recibe username/password por stdin. Verifica rechazo sin sesión, entrada, lectura de expedientes, diagnóstico y revocación al salir sin enviar cookies Google. --google-direct comprueba el mismo protocolo contra Apps Script. No imprime credenciales ni tokens.

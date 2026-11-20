@@ -1,3 +1,12 @@
+function doPost(e){
+  var response;
+  try{
+    assert_(e&&e.postData&&typeof e.postData.contents==='string'&&e.postData.contents.length<=1048576,'Petición inválida');
+    assert_(config_().MANAGEMENT_AUTH_ENABLED==='true','El acceso de gestión no está configurado');
+    response={ok:true,result:bridgeCall(JSON.parse(e.postData.contents))};
+  }catch(error){response={ok:false,error:String(error.message||'No se pudo procesar la solicitud')};}
+  return ContentService.createTextOutput(JSON.stringify(response)).setMimeType(ContentService.MimeType.JSON);
+}
 function doGet(e) {
   if(e && e.parameter && e.parameter.mode==='setup'){
     try{setupOwner_();return HtmlService.createTemplate(html_('Setup')).evaluate().setTitle('Configurar UMA · Google Workspace').addMetaTag('viewport','width=device-width, initial-scale=1');}catch(error){return HtmlService.createHtmlOutput('<p>Solo la cuenta propietaria puede configurar el sistema.</p>');}

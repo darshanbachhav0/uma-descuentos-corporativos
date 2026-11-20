@@ -14,8 +14,10 @@ fs.mkdirSync('preview',{recursive:true});fs.writeFileSync('preview/index.html',p
 const publish=path.join(root,'web-dist');fs.mkdirSync(publish,{recursive:true});
 const config=JSON.parse(fs.readFileSync('deploy/public-config.json','utf8'));
 config.appsScriptUrl=process.env.UMA_APPS_SCRIPT_URL||config.appsScriptUrl;
+config.apiUrl=process.env.UMA_API_URL||config.apiUrl;
 config.applicationFormUrl=process.env.UMA_APPLICATION_FORM_URL||config.applicationFormUrl;
 if(config.appsScriptUrl&&!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(config.appsScriptUrl))throw new Error('UMA_APPS_SCRIPT_URL must be a Google Apps Script /exec deployment URL');
+if(!/^https:\/\/[a-z0-9-]+\.onrender\.com$/.test(config.apiUrl||''))throw new Error('UMA_API_URL must be an HTTPS Render API origin');
 const unwrap=(text,tag)=>text.replace(new RegExp('^<'+tag+'>\\s*'),'').replace(new RegExp('\\s*</'+tag+'>\\s*$'),'');
 const gate=renderIcons(fs.readFileSync('web/Gate.html','utf8'));
 const staticHtml=html.Dashboard.replace("<?!= include_('Logo'); ?>",'/uma-logo.jpg').replace("<?!= include_('Styles'); ?>",'<link rel="stylesheet" href="/styles.css"><link rel="stylesheet" href="/site.css">').replace('<body>','<body>\n'+gate).replace('<div class="app">','<div class="app" id="workspaceApp" inert>').replace("<?!= include_('Client'); ?>",'<script src="/transport.js"></script><script src="/client.js"></script>');

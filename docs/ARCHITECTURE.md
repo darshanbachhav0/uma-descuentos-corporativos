@@ -7,7 +7,8 @@ flowchart LR
   F --> T[Disparador de darshanbachhavapp@gmail.com]
   T --> D[Drive privado con revisiones]
   T --> B[Google Sheets]
-  W <-->|Canal restringido por origen y nonce| G[Apps Script HTML Service]
+  W <-->|HTTPS sin cookies Google| A[API Node en Render]
+  A <-->|JSON autenticado por sesión| G[Apps Script doPost]
   G --> B
   G --> Q[Cola de correos]
   Q --> O[Disparador del propietario]
@@ -21,9 +22,11 @@ El backend de Apps Script ejecuta **como propietario** y permite acceso anónimo
 
 ## Canal del sitio estático
 
-`google.script.run` solo existe en páginas HTML Service. El sitio externo carga un pequeño puente de Apps Script en un iframe. El puente se habilita únicamente para los orígenes HTTPS exactos de `FRONTEND_ORIGINS`. El sitio crea un nonce aleatorio de 256 bits, espera una respuesta de un origen Google válido, fija la ventana emisora y cruza mensajes únicamente con esa ventana, origen y nonce. El puente acepta mensajes exclusivamente de la ventana superior y del origen configurado. Solo las operaciones enumeradas en la lista permitida están habilitadas; no hay evaluación de código ni despacho a nombres arbitrarios.
+El navegador usa fetch HTTPS con credentials: omit hacia una API Node de Render. No carga iframes de Google ni depende de la cuenta o cookies Google del visitante. La API comprueba el origen exacto, método permitido, tamaño y sesión, y envía JSON a doPost de Apps Script mediante una conexión de servidor sin cookies. Apps Script vuelve a validar la sesión antes de leer o modificar datos.
 
-El visitante no necesita una sesión de Google: el iframe sirve anónimamente y la autorización de datos se comprueba con el token propio. El token se guarda en sessionStorage, nunca en URLs ni logs. Al cerrar sesión se elimina de la caché del servidor y del navegador. Las contraseñas no se guardan en el sitio estático.
+El token opaco se conserva en sessionStorage y se envía en Authorization, nunca en URLs. El servidor de enlace no guarda registros, archivos ni credenciales Google; las sesiones y datos operativos siguen en Google. Respuestas privadas usan no-store. No se reintentan automáticamente decisiones o envíos ante un fallo de red.
+
+La entrada tiene un plazo total de 90 segundos y siempre vuelve a habilitar el botón tras un fallo. El inicio del sitio despierta el servicio API gratuito; tras inactividad Render puede tardar en iniciarlo y la interfaz muestra ese estado en vez de permanecer indefinidamente en Validando acceso.
 
 Las vistas previas, descargas de documentos y exportaciones XLSX se entregan por la misma sesión autenticada. Los archivos se conservan privados en Drive. Los enlaces del Excel abren el expediente o documento en el panel. Los estudiantes reciben directamente Google Forms; `/estudiantes` redirige a ese formulario.
 

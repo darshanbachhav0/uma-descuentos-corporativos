@@ -24,10 +24,25 @@ services:
         value: no-referrer
       - path: /*
         name: Content-Security-Policy
-        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob: https://script.google.com https://*.googleusercontent.com https://drive.google.com; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        value: "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src blob:; connect-src 'self' https://uma-descuentos-corporativos-api.onrender.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
       - path: /config.json
         name: Cache-Control
         value: no-store
       - path: /uma-logo.jpg
         name: Cache-Control
         value: public, max-age=300, no-transform
+      - path: /transport.js
+        name: Cache-Control
+        value: no-store
+      - path: /
+        name: Cache-Control
+        value: no-store
+  - type: web
+    name: uma-descuentos-corporativos-api
+    runtime: node
+    region: oregon
+    plan: free
+    branch: main
+    buildCommand: node --check api/server.mjs
+    startCommand: npm run start:api
+    healthCheckPath: /healthz
