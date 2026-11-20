@@ -2,13 +2,15 @@ function saveDecision(input) {
   var actor=reviewer_();assert_(input&&/^[\w-]{12,100}$/.test(input.requestId),'Identificador de decisión inválido');
   return locked_(function(){
     var key='DECISION:'+input.requestId,journal=find_('Decisiones','key',key);
-    if(journal){assert_(journal.applicationId===input.id&&journal.reviewer===actor,'Conflicto de decisión');applyDecision_(journal);return {id:input.id,status:application_(input.id).status,emailStatus:application_(input.id).emailStatus};}
+    if(journal){assert_(journal.applicationId===input.id&&journal.reviewer===actor,'Conflicto de decisión');applyDecision_(journal);return {id:input.id,status:application_(input.id).status,email:sendNow_(key+':EMAIL'),emailStatus:application_(input.id).emailStatus};}
     var a=application_(input.id);validateDecision_(a,input);
     assert_(!rows_('Eventos').some(function(event){return event.applicationId===a.id&&event.status!=='DONE';}),'Hay documentos pendientes de procesamiento. Espere la recuperación antes de revisar.');
     assert_(!rows_('Decisiones').some(function(d){return d.applicationId===a.id&&d.status!=='DONE';}),'Una decisión anterior está en recuperación. Actualice en unos minutos.');
     var payload={decision:input.decision,version:Number(a.version),siguConfirmed:input.siguConfirmed===true,siguReference:cleanText_(input.siguReference,200),category:cleanText_(input.category,150),observation:cleanText_(input.observation,3000),instructions:cleanText_(input.instructions,3000),expiresAt:new Date(Date.now()+Number(config_().CORRECTION_DAYS)*86400000).toISOString()};
     journal={key:key,applicationId:a.id,reviewer:actor,payload:JSON.stringify(payload),status:'PENDING',timestamp:now_()};
-    put_('Decisiones',journal);applyDecision_(journal);return {id:a.id,status:application_(a.id).status,emailStatus:'PENDING'};
+    put_('Decisiones',journal);applyDecision_(journal);
+    // Send now so the reviewer sees whether the email went out; the queue remains the fallback.
+    var email=sendNow_(key+':EMAIL');return {id:a.id,status:application_(a.id).status,emailStatus:email.status,email:email};
   });
 }
 function applyDecision_(j) {
@@ -44,5 +46,5 @@ function renewCorrection(id) {
   var actor=reviewer_();return locked_(function(){var a=application_(id);assert_(a.status==='OBSERVADA','Solo para solicitudes observadas');
     assert_(!rows_('Decisiones').some(function(j){return j.applicationId===id&&j.status!=='DONE';}),'Espere la recuperación de la decisión anterior');
     a.version=Number(a.version)+1;a.correctionRevision=a.version;a.correctionExpiresAt=new Date(Date.now()+Number(config_().CORRECTION_DAYS)*86400000).toISOString();
-    var key='RENEW:'+Utilities.getUuid();queueDecisionEmail_(a,'OBSERVED',key);a.lastDecisionKey=key;a.emailStatus='PENDING';saveApplication_(a);audit_(actor,'CORRECTION_RENEWED',id,'Nuevo enlace por correo');return {status:'PENDING'};});
+    var key='RENEW:'+Utilities.getUuid();queueDecisionEmail_(a,'OBSERVED',key);a.lastDecisionKey=key;a.emailStatus='PENDING';saveApplication_(a);audit_(actor,'CORRECTION_RENEWED',id,'Nuevo enlace por correo');var email=sendNow_(key+':EMAIL');return {status:email.status,email:email};});
 }

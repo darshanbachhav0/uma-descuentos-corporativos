@@ -22,27 +22,36 @@
     <p id="pausedBanner" class="banner hidden">El envío de correos está pausado. Las decisiones se guardan y los correos quedan en cola.</p>
     <p id="attentionBar" class="banner hidden" role="status"></p>
     <section id="applicationsPanel" class="card">
+      <div id="queueChips" class="chips hidden" role="group" aria-label="Filtrar pendientes"><button type="button" class="chip active" data-queue="">Todas</button><button type="button" class="chip" data-queue="review">Por revisar</button><button type="button" class="chip" data-queue="waiting">Esperando al estudiante</button><button type="button" class="chip" data-queue="attention">Con alertas</button></div>
       <form id="filters" class="toolbar">
         <label class="search"><span class="ui-icon" data-icon="search"></span><input id="search" type="search" placeholder="Buscar por nombre, DNI, correo o código" autocomplete="off" aria-label="Buscar"></label>
         <select id="statusFilter" aria-label="Estado"><option value="">Todos los estados</option></select>
         <select id="discountFilter" aria-label="Convenio"><option value="">Todos los convenios</option></select>
-        <button type="button" id="moreFilters" class="button" aria-expanded="false" aria-controls="advancedFilters"><span class="ui-icon" data-icon="filter"></span>Filtros</button>
+        <select id="schoolFilter" aria-label="Escuela"><option value="">Todas las escuelas</option></select>
+        <label class="date">Desde <input id="fromFilter" type="date"></label>
+        <label class="date">Hasta <input id="toFilter" type="date"></label>
+        <button type="button" id="clearFilters" class="link hidden">Limpiar filtros</button>
         <span class="spacer"></span>
         <button type="button" id="refresh" class="button icon-only" aria-label="Actualizar" title="Actualizar"><span class="ui-icon" data-icon="refresh"></span></button>
         <button type="button" id="export" class="button outline"><span class="ui-icon" data-icon="download"></span>Exportar Excel</button>
       </form>
-      <div id="advancedFilters" class="toolbar advanced hidden">
-        <select id="schoolFilter" aria-label="Escuela"><option value="">Todas las escuelas</option></select>
-        <label class="date">Desde <input id="fromFilter" type="date"></label>
-        <label class="date">Hasta <input id="toFilter" type="date"></label>
-        <button type="button" id="clearFilters" class="link">Limpiar filtros</button>
-      </div>
       <div class="table-wrap"><table class="apps"><thead><tr><th>Estudiante</th><th>Correo institucional</th><th>Convenio</th><th class="num">Envíos</th><th>Último envío</th><th>Estado</th></tr></thead><tbody id="applicationRows"></tbody></table></div>
       <footer class="pager"><span id="paginationText"></span><span class="pager-buttons"><button id="prevPage" class="button small" aria-label="Página anterior"><span class="ui-icon" data-icon="left"></span></button><button id="nextPage" class="button small" aria-label="Página siguiente"><span class="ui-icon" data-icon="right"></span></button></span></footer>
     </section>
     <section id="emailsPanel" class="card hidden">
-      <p class="hint pad">“Aceptado por Google” significa que Google aceptó el envío; no confirma que llegó al buzón.</p>
+      <form id="mailFilters" class="toolbar">
+        <label class="search"><span class="ui-icon" data-icon="search"></span><input id="mailSearch" type="search" placeholder="Buscar por código o destinatario" autocomplete="off" aria-label="Buscar correos"></label>
+        <select id="mailType" aria-label="Tipo"><option value="">Todos los tipos</option><option value="APPROVED">Aprobación</option><option value="OBSERVED">Observación</option><option value="RECEIVED">Acuse de recepción</option></select>
+        <select id="mailStatus" aria-label="Estado del correo"><option value="">Todos los estados</option><option value="SENT">Aceptado por Google</option><option value="PENDING">En cola</option><option value="UNCERTAIN">Requiere comprobación</option><option value="CANCELLED">Reemplazado</option></select>
+        <label class="date">Desde <input id="mailFrom" type="date"></label>
+        <label class="date">Hasta <input id="mailTo" type="date"></label>
+        <button type="button" id="clearMailFilters" class="link hidden">Limpiar filtros</button>
+        <span class="spacer"></span>
+        <button type="button" id="refreshMails" class="button icon-only" aria-label="Actualizar" title="Actualizar"><span class="ui-icon" data-icon="refresh"></span></button>
+      </form>
+      <p class="hint pad">“Aceptado por Google” significa que Google aceptó el envío; no confirma que llegó al buzón. Si no llega, pida al estudiante revisar Spam y Promociones.</p>
       <div class="table-wrap"><table class="mails"><thead><tr><th>Solicitud</th><th>Destinatario</th><th>Tipo</th><th>Fecha</th><th>Estado</th><th></th></tr></thead><tbody id="emailRows"></tbody></table></div>
+      <footer class="pager"><span id="mailCount"></span></footer>
     </section>
     <footer class="page-footer">Universidad María Auxiliadora · Área de Tesorería</footer>
   </main>
@@ -53,6 +62,11 @@
   <div id="detailLoading" class="overlay hidden" aria-hidden="true"><span class="spinner large"></span></div>
 </dialog>
 <dialog id="confirmDialog" class="confirm-dialog" aria-labelledby="confirmTitle"><span class="confirm-icon"><span class="ui-icon" data-icon="mail"></span></span><h2 id="confirmTitle">Confirmar</h2><p id="confirmText"></p><div class="dialog-actions"><button id="cancelDecision" class="button">Volver</button><button id="confirmDecision" class="button primary">Confirmar y notificar</button></div></dialog>
+<dialog id="resultDialog" class="confirm-dialog result-dialog" aria-labelledby="resultTitle"><span id="resultIcon" class="confirm-icon"></span><h2 id="resultTitle"></h2><p id="resultText"></p><p id="resultReason" class="reason hidden"></p><div class="dialog-actions"><button id="resultMails" class="button hidden">Ver correos</button><button id="resultContinue" class="button primary">Continuar</button></div></dialog>
+<dialog id="viewerDialog" class="viewer-dialog" aria-labelledby="viewerTitle">
+  <header class="viewer-header"><div class="viewer-title"><span class="ui-icon" data-icon="file"></span><div><h2 id="viewerTitle" tabindex="-1" autofocus>Documento</h2><div id="viewerSub" class="sub"></div></div></div><div class="viewer-actions"><button id="viewerPrev" class="button icon-only" aria-label="Documento anterior" title="Anterior (←)"><span class="ui-icon" data-icon="left"></span></button><span id="viewerPosition" class="sub"></span><button id="viewerNext" class="button icon-only" aria-label="Documento siguiente" title="Siguiente (→)"><span class="ui-icon" data-icon="right"></span></button><button id="viewerDownload" class="button"><span class="ui-icon" data-icon="download"></span><span class="label">Descargar</span></button><button id="viewerClose" class="button icon-only" aria-label="Cerrar (Esc)" title="Cerrar (Esc)"><span class="ui-icon" data-icon="close"></span></button></div></header>
+  <div class="viewer-body"><iframe id="viewerFrame" class="hidden" title="Documento" referrerpolicy="no-referrer"></iframe><img id="viewerImage" class="hidden" alt=""><div id="viewerLoading" class="overlay"><div><span class="spinner large"></span><span class="label">Cargando documento…</span></div></div></div>
+</dialog>
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 <?!= include_('Client'); ?>
 </body></html>

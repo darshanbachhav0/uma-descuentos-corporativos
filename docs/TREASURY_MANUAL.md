@@ -18,6 +18,13 @@
 
 Si un estudiante envía el formulario después de la aplicación en SIGU, la solicitud conserva **Aplicada en SIGU** y muestra una alerta.
 
+## Documentos, filtros y resultado del correo
+
+- **Ver** abre el documento a pantalla completa. Las flechas ← → (o los botones) pasan al documento anterior o siguiente; **Descargar** guarda el archivo y **Esc** cierra el visor.
+- Cada pestaña tiene su propia búsqueda y filtros (estado, convenio, escuela, fechas), que se conservan al cambiar de pestaña. **Pendientes** tiene filtros rápidos: Por revisar, Esperando al estudiante y Con alertas. **Correos** se filtra por código o destinatario, tipo, estado y fechas.
+- Al pulsar **Confirmar y notificar** el correo se envía en ese momento y aparece un mensaje con el resultado: **Correo enviado**, **El correo aún no se envió** (con el motivo: envío pausado, cuota diaria agotada, etc.; queda en cola y se envía solo) o **No se pudo confirmar el envío** (revíselo en Correos).
+- En **Correos**, un correo **En cola** tiene el botón **Enviar ahora**.
+
 ## Exportar
 
 **Exportar Excel** descarga la lista con los filtros actuales, con hojas de solicitudes y documentos. Los enlaces abren la solicitud en el panel.
