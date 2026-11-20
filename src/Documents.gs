@@ -6,6 +6,8 @@ function restrictedFolder_(parent, name) {
 function ensureApplicationFolder_(a) {
   if(a.folderId)return DriveApp.getFolderById(a.folderId);
   var period=restrictedFolder_(DriveApp.getFolderById(config_().ROOT_DRIVE_FOLDER_ID),a.period);
+  // People who can open the spreadsheet can view the documents (Sharing.gs); never blocks the submission.
+  try{sharePeriodFolder_(period);}catch(e){error_('DOCUMENT_ACCESS',a.id,e);}
   // Readable and stable: the code plus the institutional email that groups every submission.
   var folder=restrictedFolder_(period,a.id+(a.institutionalEmail?' · '+a.institutionalEmail:''));a.folderId=folder.getId();a.folderUrl=folder.getUrl();saveApplication_(a);return folder;
 }
@@ -29,7 +31,7 @@ function copyDocuments_(a, uploads, revision, submittedAt) {
     // Deterministic names recover an interrupted copy-before-sheet-write without duplicating it.
     var label=(kind==='socioeconomic'?'Ficha socioeconómica':'Documento sustentatorio')+' '+String(index+1);
     var name=label+' · '+stamp+'.'+ext,it=folder.getFilesByName(name),copy=it.hasNext()?it.next():source.makeCopy(name,folder);
-    copy.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.NONE);
+    try{shareDocument_(copy);}catch(e){copy.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.NONE);}
     append_('Documentos',{key:key,applicationId:a.id,revision:revision,kind:kind,sourceId:sourceId,fileId:copy.getId(),name:name,mimeType:copy.getMimeType(),url:copy.getUrl(),createdAt:now_(),submittedAt:submittedAt||''});
   });});
   var docs=rows_('Documentos').filter(function(d){return d.applicationId===a.id&&Number(d.revision)===revision;});
