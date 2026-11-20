@@ -19,7 +19,7 @@ test('approval retains required subject and wording, with application context an
   assert.equal(mail.subject,original.subject);
   assert.ok(mail.body.startsWith(original.body+'\n\n---\n'));
   assert.ok(mail.body.includes('Referencia de solicitud: '+a.id));
-  assert.ok(mail.body.includes('Fecha de presentación (UTC): 2026-11-19'));
+  assert.ok(mail.body.includes('Fecha de presentación: 2026-11-19'));
   assert.ok(mail.body.includes('porque presentó una solicitud'));
   assert.ok(mail.body.includes(s.ctx.UMA.owner));
   assert.equal(mail.replyTo,s.ctx.UMA.owner);assert.equal(mail.name,'Tesorería UMA');
@@ -46,7 +46,7 @@ test('queue limits each minute-trigger run to three messages and drains the rest
   assert.equal(s.db.Correos.filter(m=>m.status==='PENDING').length,4);
   assert.equal(s.ctx.processEmailQueue().sent,3);
   assert.equal(s.ctx.processEmailQueue().sent,1);
-  assert.equal(s.ctx.processEmailQueue().sent,0);
+  assert.equal(s.ctx.processEmailQueue().idle,true);
   assert.equal(new Set(s.sent.map(m=>m.to)).size,7);
   assert.equal(s.db.Correos.filter(m=>m.status==='SENT').length,7);
 });

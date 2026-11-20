@@ -1,16 +1,44 @@
-function book_() { var id=config_().SPREADSHEET_ID; assert_(id,'Ejecute initializeProject primero'); return SpreadsheetApp.openById(id); }
+// Sheets persistence. Each Apps Script execution reads a table once and keeps the values in memory;
+// writes update that copy, and acquiring the script lock discards it so locked work always sees fresh data.
+var UMA_MEMO_ = {};
+function book_() { var id=config_().SPREADSHEET_ID; assert_(id,'Ejecute initializeProject primero'); if(!UMA_MEMO_.__book)UMA_MEMO_.__book=SpreadsheetApp.openById(id); return UMA_MEMO_.__book; }
 function table_(name) { var s=book_().getSheetByName(name);assert_(s,'Falta la hoja '+name);return s; }
+function forgetTables_() { var b=UMA_MEMO_.__book; UMA_MEMO_={}; if(b)UMA_MEMO_.__book=b; }
+/** Loads a table once per execution and appends any schema column added by a newer version. */
+function sheetValues_(name) {
+  var memo=UMA_MEMO_['t:'+name]; if(memo)return memo;
+  var s=table_(name), values=s.getDataRange().getValues(), header=values[0]||[];
+  var schema=(UMA.schema[name]||[]), missing=schema.filter(function(k){return header.indexOf(k)<0;});
+  if(missing.length&&header.length&&header.some(function(v){return v!=='';})){
+    var width=header.length+missing.length;
+    if(s.getMaxColumns()<width)s.insertColumnsAfter(s.getMaxColumns(),width-s.getMaxColumns());
+    s.getRange(1,header.length+1,1,missing.length).setValues([missing]);
+    values[0]=header.concat(missing);
+    for(var i=1;i<values.length;i++)values[i]=values[i].concat(missing.map(function(){return '';}));
+  }
+  memo={sheet:s,values:values};UMA_MEMO_['t:'+name]=memo;return memo;
+}
+function rowObject_(h,r) { var o={};h.forEach(function(k,i){if(k!=='')o[k]=r[i] instanceof Date?r[i].toISOString():r[i];});return o; }
 function rows_(name) {
-  var s=table_(name), values=s.getDataRange().getValues(), h=values.shift();
-  return values.filter(function(r){return r[0]!=='';}).map(function(r){var o={};h.forEach(function(k,i){o[k]=r[i] instanceof Date?r[i].toISOString():r[i];});return o;});
+  var values=sheetValues_(name).values, h=values[0];
+  var out=[];for(var i=1;i<values.length;i++)if(values[i][0]!=='')out.push(rowObject_(h,values[i]));return out;
 }
 function put_(name, record, keyField) {
-  keyField=keyField||'key';var s=table_(name), values=s.getDataRange().getValues(),h=values[0], k=h.indexOf(keyField);
-  assert_(k>=0,'Columna clave ausente'); var n=values.findIndex(function(r,i){return i>0&&String(r[k])===String(record[keyField]);});
-  var row=h.map(function(field,i){return Object.prototype.hasOwnProperty.call(record,field)?sheetValue_(record[field]):(n>=0?values[n][i]:'');});
-  s.getRange(n<0?s.getLastRow()+1:n+1,1,1,h.length).setValues([row]);return record;
+  keyField=keyField||'key';var memo=sheetValues_(name), values=memo.values, h=values[0], k=h.indexOf(keyField);
+  assert_(k>=0,'Columna clave ausente'); var n=-1;
+  for(var i=1;i<values.length;i++)if(String(values[i][k])===String(record[keyField])){n=i;break;}
+  var row=h.map(function(field,i){return field!==''&&Object.prototype.hasOwnProperty.call(record,field)?sheetValue_(record[field]):(n>=0?keepValue_(values[n][i]):'');});
+  var target=n<0?values.length:n;
+  memo.sheet.getRange(target+1,1,1,h.length).setValues([row]);
+  values[target]=row.map(unsheetValue_);return record;
 }
-function append_(name, record) { var s=table_(name),h=s.getRange(1,1,1,s.getLastColumn()).getValues()[0];s.appendRow(h.map(function(k){return sheetValue_(record[k]);}));return record; }
+function append_(name, record) {
+  var memo=sheetValues_(name),h=memo.values[0],row=h.map(function(k){return sheetValue_(record[k]);});
+  memo.sheet.appendRow(row);memo.values.push(row.map(unsheetValue_));return record;
+}
+function keepValue_(v) { return v instanceof Date?v:sheetValue_(v); }
+/** The sheet stores escaped text as '0123; the in-memory copy must match what a fresh read returns. */
+function unsheetValue_(v) { return typeof v==='string'&&v.charAt(0)==="'"?v.slice(1):v; }
 function find_(name,key,value) { return rows_(name).find(function(r){return String(r[key])===String(value);}); }
 function application_(id) {var a=find_('Solicitudes','id',id);assert_(a,'Solicitud no encontrada');return a;}
 function saveApplication_(a) {a.updatedAt=now_();put_('Solicitudes',a,'id');return a;}

@@ -32,7 +32,8 @@ El archivo **`dist/Code.gs` contiene todo el backend, el panel y el logotipo**, 
 - Registro por ID estable de pregunta; DNI conserva ceros iniciales; correo institucional obligatorio y personal opcional.
 - Convenios Familiar, PNP, San Hilarión, FED-CUT, Liderman, Emphost, El Tumi, Boticas Perú y Otro con sección obligatoria.
 - PDF original descargable, llenado y firma manuales; archivos PDF/JPG/PNG.
-- Expediente único por documento/tipo/periodo, archivos privados con revisiones, respuestas originales conservadas.
+- Una solicitud por correo institucional y periodo: cada nuevo envío del estudiante se añade como revisión. Ningún envío se descarta; los datos inválidos se muestran como alertas. Archivos privados con revisiones, respuestas originales conservadas.
+- Las solicitudes observadas siguen en Pendientes hasta que el estudiante corrige y Tesorería aprueba.
 - Panel adaptable, búsqueda, filtros de escuela/convenio/fecha/estado, paginación, estadísticas, vista previa y seguimiento.
 - Aprobación únicamente tras confirmación manual de SIGU. No existe una integración inventada con SIGU.
 - Observaciones y subsanación con token HMAC, vencimiento, datos de identificación y el mismo expediente.

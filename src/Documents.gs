@@ -8,9 +8,10 @@ function ensureApplicationFolder_(a) {
   var period=restrictedFolder_(DriveApp.getFolderById(config_().ROOT_DRIVE_FOLDER_ID),a.period);
   var folder=restrictedFolder_(period,a.id);a.folderId=folder.getId();a.folderUrl=folder.getUrl();saveApplication_(a);return folder;
 }
+/** Copies the revision's uploads privately. Returns data issues; storage failures throw so they are retried. */
 function copyDocuments_(a, uploads, revision) {
-  var cfg=config_(),folder=restrictedFolder_(ensureApplicationFolder_(a),'Revision_'+revision);
-  assert_(uploads.socioeconomic.length>=1,'Falta la ficha socioeconómica');
+  var cfg=config_(),folder=restrictedFolder_(ensureApplicationFolder_(a),'Revision_'+revision),issues=[];
+  if(!uploads.socioeconomic.length)issues.push('Falta la ficha socioeconómica');
   var all=uploads.socioeconomic.concat(uploads.supporting);assert_(all.length<=Number(cfg.MAX_FILES),'Demasiados documentos');
   var sources=all.map(function(id){assert_(/^[\w-]{10,}$/.test(id),'ID de archivo inválido');var f=DriveApp.getFileById(id);
     assert_(f.getOwner()&&normalizeEmail_(f.getOwner().getEmail())===UMA.owner,'La carga debe pertenecer a la cuenta administradora');
@@ -30,4 +31,5 @@ function copyDocuments_(a, uploads, revision) {
   var docs=rows_('Documentos').filter(function(d){return d.applicationId===a.id&&Number(d.revision)===revision;});
   a.socioeconomicUrls=docs.filter(function(d){return d.kind==='socioeconomic';}).map(function(d){return d.url;}).join('\n');
   a.supportingUrls=docs.filter(function(d){return d.kind==='supporting';}).map(function(d){return d.url;}).join('\n');
+  return issues;
 }

@@ -10,6 +10,11 @@ function validateTrigger_(e, handler, formKey) {
 }
 function onApplicationSubmit(e){validateTrigger_(e,'onApplicationSubmit','GOOGLE_FORM_ID');return ingest_(e.response,false);}
 function onCorrectionSubmit(e){validateTrigger_(e,'onCorrectionSubmit','CORRECTION_FORM_ID');return ingest_(e.response,true);}
+/**
+ * Records one Google Forms response. Initial-form responses are grouped by institutional email:
+ * the first creates the application, later ones become new revisions of the same application.
+ * Data problems never discard a response; they are stored as `issues` for Treasury to see.
+ */
 function ingest_(response,correction) {
   effectiveOwner_();return locked_(function(){
     var cfg=config_(),formId=cfg[correction?'CORRECTION_FORM_ID':'GOOGLE_FORM_ID'],key=formId+':'+response.getId();
@@ -17,37 +22,55 @@ function ingest_(response,correction) {
     event=event||{key:key,formId:formId,responseId:response.getId(),timestamp:now_(),status:'PROCESSING'};
     event.attempts=Number(event.attempts||0)+1;event.attemptedAt=now_();
     try{
-      var data=readResponse_(response,correction),a;
+      var data=readResponse_(response,correction),a,issues=[],info=null,submittedAt=response.getTimestamp().toISOString();
       if(correction){
         a=application_(cleanText_(data.values.applicationId));
         if(!event.applicationId){
           validateCorrection_(a,data.values,cfg);
           assert_(!rows_('Eventos').some(function(prior){return prior.applicationId===a.id&&prior.formId===formId&&prior.status!=='DONE';}),'Existe una subsanación en proceso. Tesorería debe resolver ese envío primero.');
-          event.applicationId=a.id;event.revision=Number(a.revision)+1;put_('Eventos',event);
+          event.applicationId=a.id;event.revision=nextRevision_(a);put_('Eventos',event);
         }
       }else{
-        var valid=validateApplication_(data.values,cfg);
+        info=inspectApplication_(data.values,cfg);issues=info.issues.slice();
         if(event.applicationId)a=application_(event.applicationId);
         else{
           a=find_('Solicitudes','initialResponseId',response.getId());
-          if(a){event.applicationId=a.id;event.revision=1;put_('Eventos',event);}
-          else a=rows_('Solicitudes').find(function(r){return r.period===cfg.ACADEMIC_PERIOD&&r.identityType===valid.identityType&&r.identityNumber===valid.identityNumber;});
-          if(a&&a.initialResponseId!==response.getId()){event.applicationId=a.id;event.revision=a.revision;event.status='DONE';event.error='DUPLICATE_APPLICATION';put_('Eventos',event);audit_(UMA.owner,'DUPLICATE_SUBMISSION',a.id,'Envío '+response.getId()+' conservado en respuestas originales; use subsanación');return a.id;}
-          if(!a){
-          a=Object.assign(valid,{id:nextId_(),createdAt:response.getTimestamp().toISOString(),updatedAt:now_(),period:cfg.ACADEMIC_PERIOD,initialResponseId:response.getId(),revision:1,version:1,status:'RECIBIDA',emailStatus:''});
-          saveApplication_(a);event.applicationId=a.id;event.revision=1;put_('Eventos',event);
+          if(a)event.revision=1;
+          else{
+            a=studentApplication_(info.data,cfg.ACADEMIC_PERIOD);
+            if(a)event.revision=nextRevision_(a);
+            else{
+              a=Object.assign({},info.data,{id:nextId_(),createdAt:submittedAt,updatedAt:now_(),period:cfg.ACADEMIC_PERIOD,initialResponseId:response.getId(),revision:1,version:1,status:'RECIBIDA',emailStatus:'',submissions:1,lastSubmissionAt:submittedAt,issues:issueText_(1,issues)});
+              saveApplication_(a);event.revision=1;
+            }
           }
+          event.applicationId=a.id;put_('Eventos',event);
         }
       }
-      // A saved incomplete event resumes the same application/revision.
-      assert_(data.values.signed&&data.values.consent,'Falta confirmación de firma o privacidad');
-      copyDocuments_(a,data.uploads,Number(event.revision));
+      var revision=Number(event.revision);
+      if(!(data.values.signed&&data.values.consent))issues.push('Falta confirmación de firma o privacidad');
+      issues=issues.concat(copyDocuments_(a,data.uploads,revision));
+      var committed=Number(a.revision)>=revision;
       if(correction){
-        var alreadyCommitted=Number(a.revision)===Number(event.revision);
-        a.revision=Number(event.revision);if(!alreadyCommitted)a.version=Number(a.version)+1;a.lastCorrectionAt=a.lastCorrectionAt||now_();a.correctionExpiresAt='';
+        if(!committed){a.revision=revision;a.version=Number(a.version)+1;a.submissions=Number(a.submissions||1)+1;a.lastSubmissionAt=submittedAt;}
+        a.lastCorrectionAt=a.lastCorrectionAt||now_();a.correctionExpiresAt='';a.issues=issueText_(revision,issues);
         transition_(a,'CORRECCION_RECIBIDA',a.recipient,cleanText_(data.values.clarification),key+':status');
-      }else if(!find_('Historial_Estados','key',key+':status'))transition_(a,'RECIBIDA',UMA.owner,'Recepción inicial',key+':status');
-      a.processingError='';saveApplication_(a);event.status='DONE';event.error='';event.retryAt='';put_('Eventos',event);audit_(UMA.owner,correction?'CORRECTION_RECEIVED':'APPLICATION_RECEIVED',a.id,'Revisión '+a.revision);return a.id;
+      }else if(revision===1){
+        a.issues=issueText_(1,issues);
+        if(!find_('Historial_Estados','key',key+':status'))transition_(a,'RECIBIDA',UMA.owner,'Recepción inicial',key+':status');
+      }else if(!committed){
+        var approved=a.status==='APLICADA_SIGU';
+        if(approved)issues.unshift('Nuevo envío recibido después de aplicar el descuento en SIGU');
+        else ['personalEmail','identityType','identityNumber','name','school','discount','otherDiscount'].forEach(function(k){a[k]=info.data[k];});
+        if(!approved&&info.data.recipient)a.recipient=info.data.recipient;
+        var next=approved?'APLICADA_SIGU':(a.status==='OBSERVADA'||a.status==='CORRECCION_RECIBIDA')?'CORRECCION_RECIBIDA':'RECIBIDA';
+        if(a.status==='OBSERVADA'){a.correctionExpiresAt='';a.lastCorrectionAt=now_();}
+        a.revision=revision;a.version=Number(a.version)+1;a.submissions=Number(a.submissions||1)+1;a.lastSubmissionAt=submittedAt;a.issues=issueText_(revision,issues);
+        transition_(a,next,a.recipient||'Estudiante','Nuevo envío del formulario · revisión '+revision,key+':status');
+      }
+      a.processingError='';saveApplication_(a);
+      if(cfg.RECEIPT_EMAIL_ENABLED==='true')queueReceiptEmail_(a,key,revision,issues);
+      event.status='DONE';event.error='';event.retryAt='';put_('Eventos',event);audit_(UMA.owner,correction?'CORRECTION_RECEIVED':(revision>1?'RESUBMISSION_RECEIVED':'APPLICATION_RECEIVED'),a.id,'Revisión '+revision+(issues.length?' · '+issues.length+' alerta(s)':''));return a.id;
     }catch(e){
       event.status='ERROR';event.error=String(e.message);event.retryAt=new Date(Date.now()+Math.min(86400000,600000*Math.pow(2,Math.min(8,event.attempts-1)))).toISOString();put_('Eventos',event);
       if(event.applicationId){try{var failed=application_(event.applicationId);failed.processingError=e.message;saveApplication_(failed);}catch(_){}}
@@ -55,6 +78,18 @@ function ingest_(response,correction) {
     }
   });
 }
+/** The student's application for the period, matched by institutional email. Prefers one still in progress. */
+function studentApplication_(data,period){
+  var key=studentKey_(data),matches=rows_('Solicitudes').filter(function(r){return r.period===period&&studentKey_(r)===key;});
+  return matches.filter(function(r){return r.status!=='APLICADA_SIGU';}).sort(byNewest_)[0]||matches.sort(byNewest_)[0]||null;
+}
+function byNewest_(a,b){return String(b.createdAt).localeCompare(String(a.createdAt));}
+/** Reserves a revision number that no other (possibly unfinished) submission of the application uses. */
+function nextRevision_(a){
+  var used=rows_('Eventos').filter(function(e){return e.applicationId===a.id;}).map(function(e){return Number(e.revision)||0;});
+  return Math.max.apply(null,[Number(a.revision)||1].concat(used))+1;
+}
+function issueText_(revision,issues){return issues.length?issues.map(function(i){return 'Revisión '+revision+': '+i;}).join('\n'):'';}
 function correctionToken_(a) {
   var message=[a.id,a.correctionRevision,a.correctionExpiresAt].join('|');
   return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(message,config_().CORRECTION_SECRET)).replace(/=+$/,'');
@@ -76,6 +111,7 @@ function correctionUrl_(a) {
 function reconcileSubmissions(e) {
   owner_(e,'reconcileSubmissions');var cfg=config_(),p=properties_();
   locked_(recoverDecisions_);
+  if(p.getProperty('DATA_MODEL')!=='email-v2')locked_(migrateToEmailGrouping_);
   [false,true].forEach(function(correction){
     var key=correction?'CORRECTION_FORM_ID':'GOOGLE_FORM_ID',cursorKey='CURSOR_'+key;
     var since=Number(p.getProperty(cursorKey)||0),cutoff=Date.now();
@@ -88,8 +124,36 @@ function reconcileSubmissions(e) {
       try{ingest_(responses[i],correction);}catch(e){/* persisted error; retried separately below */}processed++;
     }
     p.setProperty(cursorKey,String(cutoff));
-    rows_('Eventos').filter(function(e){return e.formId===cfg[key]&&e.status!=='DONE'&&(!e.retryAt||Date.parse(e.retryAt)<=Date.now());}).sort(function(a,b){return String(a.attemptedAt||'').localeCompare(String(b.attemptedAt||''));}).slice(0,5).forEach(function(e){try{ingest_(FormApp.openById(cfg[key]).getResponse(e.responseId),correction);}catch(_){}});
+    rows_('Eventos').filter(function(e){return e.formId===cfg[key]&&e.status!=='DONE'&&(!e.retryAt||Date.parse(e.retryAt)<=Date.now());}).sort(function(a,b){return String(a.attemptedAt||'').localeCompare(String(b.attemptedAt||''));}).slice(0,10).forEach(function(e){try{ingest_(FormApp.openById(cfg[key]).getResponse(e.responseId),correction);}catch(_){}});
   });
+}
+/**
+ * One-time upgrade: earlier versions grouped by identity number and dropped invalid or duplicate
+ * submissions. Those responses are queued again so they join the student's application by email.
+ */
+function migrateToEmailGrouping_(){
+  rows_('Eventos').forEach(function(e){
+    if(e.error==='DUPLICATE_APPLICATION'){e.status='ERROR';e.applicationId='';e.revision='';e.retryAt='';e.error='Pendiente de reagrupar por correo institucional';put_('Eventos',e);}
+    else if(e.status==='ERROR'&&!e.applicationId){e.retryAt='';put_('Eventos',e);}
+  });
+  var apps=rows_('Solicitudes'),groups={};
+  apps.forEach(function(a){var k=a.period+'|'+studentKey_(a);(groups[k]=groups[k]||[]).push(a.id);});
+  apps.forEach(function(a){
+    var changed=false,others=groups[a.period+'|'+studentKey_(a)].filter(function(id){return id!==a.id;});
+    if(!a.submissions){a.submissions=1;a.lastSubmissionAt=a.lastSubmissionAt||a.createdAt;changed=true;}
+    // Applications created separately by the identity-based version are flagged, not merged: they may hold decisions.
+    if(others.length&&String(a.issues).indexOf('mismo correo institucional')<0){a.issues=(a.issues?a.issues+'\n':'')+'Existe otra solicitud con el mismo correo institucional: '+others.join(', ');changed=true;}
+    if(changed)put_('Solicitudes',a,'id');
+  });
+  properties_().setProperty('DATA_MODEL','email-v2');audit_(UMA.owner,'DATA_MODEL_UPGRADED','','Envíos agrupados por correo institucional');
+}
+/** Owner action from the Apps Script editor: regroup now instead of waiting for the 10-minute trigger. */
+function regroupSubmissionsByEmail(){
+  owner_();locked_(migrateToEmailGrouping_);
+  var cfg=config_();[false,true].forEach(function(correction){var formId=cfg[correction?'CORRECTION_FORM_ID':'GOOGLE_FORM_ID'];
+    rows_('Eventos').filter(function(e){return e.formId===formId&&e.status!=='DONE';}).sort(function(a,b){return String(a.timestamp).localeCompare(String(b.timestamp));}).slice(0,30).forEach(function(e){try{ingest_(FormApp.openById(formId).getResponse(e.responseId),correction);}catch(_){}});
+  });
+  return rows_('Eventos').filter(function(e){return e.status!=='DONE';}).map(function(e){return {key:e.key,error:e.error};});
 }
 function retryFailedEvent(key){
   owner_();var event=find_('Eventos','key',key);assert_(event&&event.status!=='DONE','No hay un evento pendiente');
