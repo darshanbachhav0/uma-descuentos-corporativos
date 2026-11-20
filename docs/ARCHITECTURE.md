@@ -4,7 +4,7 @@
 flowchart LR
   S[Estudiante] --> F[Google Forms]
   R[Tesorería] --> W[Render: usuario y contraseña]
-  F --> T[Disparador de darshanbachhavapp@gmail.com]
+  F --> T[Disparador de contactotesoreriauma@gmail.com]
   T --> D[Drive privado con revisiones]
   T --> B[Google Sheets]
   W <-->|HTTPS sin cookies Google| A[API Node en Render]

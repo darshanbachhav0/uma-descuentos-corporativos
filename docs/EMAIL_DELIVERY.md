@@ -1,6 +1,6 @@
 # Entrega de notificaciones a Gmail
 
-El remitente continúa siendo **darshanbachhavapp@gmail.com**, autorizado mediante MailApp y el disparador del propietario. El destinatario siempre procede del formulario de la solicitud. No hay destinatarios de prueba, copias ocultas, campañas ni envío de mensajes adicionales para crear reputación.
+El remitente continúa siendo **contactotesoreriauma@gmail.com**, autorizado mediante MailApp y el disparador del propietario. El destinatario siempre procede del formulario de la solicitud. No hay destinatarios de prueba, copias ocultas, campañas ni envío de mensajes adicionales para crear reputación.
 
 ## Cambios en la aplicación
 
@@ -23,7 +23,7 @@ El dominio emisor es `gmail.com`: sus registros DNS y claves los administra Goog
 
 ## Qué hacer con un mensaje legítimo ya clasificado como Spam
 
-1. El estudiante verifica que se trata del resultado de su propia solicitud y que el remitente es **darshanbachhavapp@gmail.com**.
+1. El estudiante verifica que se trata del resultado de su propia solicitud y que el remitente es **contactotesoreriauma@gmail.com**.
 2. En su Gmail abre **Más → Spam**, selecciona ese mensaje y pulsa **No es spam**. Puede agregar esa dirección exacta a Contactos. No se requiere acceso de Tesorería al buzón del estudiante.
 3. Si vuelve a ocurrir, obtiene el texto del aviso superior de Spam. En **Más → Mostrar original**, copia solo los resultados SPF, DKIM y DMARC para diagnóstico. No comparte nombres, documentos ni el enlace de subsanación.
 4. Tesorería revisa Correos, Auditoría y Enviados, sin restablecer SENT a PENDING ni repetir una aprobación para probar recepción. Si MailApp devuelve un error ambiguo se conserva UNCERTAIN hasta comprobar el resultado.

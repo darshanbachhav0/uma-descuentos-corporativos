@@ -1,7 +1,7 @@
 # Seguridad y permisos
 
 - El panel utiliza usuario y contraseña de gestión. No ofrece autenticación Google, registro ni otros métodos de acceso.
-- El servicio de Apps Script ejecuta como darshanbachhavapp@gmail.com y admite visitantes anónimos; las operaciones de datos y revisión requieren una sesión propia válida. Una sesión Google del propietario no sustituye esa sesión del panel.
+- El servicio de Apps Script ejecuta como contactotesoreriauma@gmail.com y admite visitantes anónimos; las operaciones de datos y revisión requieren una sesión propia válida. Una sesión Google del propietario no sustituye esa sesión del panel.
 - El navegador deriva una prueba PBKDF2/SHA-256 con sal aleatoria y 600 000 iteraciones. El servidor compara el hash de esa prueba con el verificador privado de Script Properties. No se guardan contraseñas en texto plano, pruebas de contraseña ni credenciales Google en el sitio público o Git.
 - Las sesiones usan tokens opacos; el servidor guarda solo su hash en la caché, y el navegador guarda el token en sessionStorage. Vencen en un máximo de seis horas y pueden terminar antes si Google elimina la caché. Cerrar sesión revoca el token. Cambiar la versión de credenciales invalida todas las sesiones anteriores.
 - Tras diez intentos incorrectos hay una pausa de quince minutos. Este límite se comparte entre visitantes porque Apps Script no proporciona una dirección IP de cliente fiable al servicio.

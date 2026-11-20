@@ -13,7 +13,7 @@ Registro actualizado: 20 de noviembre de 2026 (America/Lima).
 
 ## Configuración completada y comprobada
 
-- Cuenta propietaria y remitente autorizado: **darshanbachhavapp@gmail.com**. El destinatario se obtiene de cada solicitud; no hay destinatario estudiantil fijo.
+- Cuenta propietaria y remitente autorizado: **contactotesoreriauma@gmail.com**. El cambio desde darshanbachhavapp@gmail.com se hace con [CAMBIO_DE_CUENTA.md](CAMBIO_DE_CUENTA.md); hasta completarlo, los enlaces de esta página corresponden a la instalación anterior. El destinatario se obtiene de cada solicitud; no hay destinatario estudiantil fijo.
 - Render: **Bachhav Darshan's Workspace**, servicio `srv-dbvpg7l9fdbs73bju90g`, repositorio privado `darshanbachhav0/uma-descuentos-corporativos`. El despliegue inicial se observó en estado `live`; las actualizaciones de main se despliegan automáticamente.
 - Apps Script: proyecto `1TiZZM47BuA-iPRfS09rcD22BoFUNIUqTeu3lwS9VhbR1OT9rnTWJBVIa`, versión **10**, servicio ejecutando como propietario con acceso anónimo y autenticación propia por usuario/contraseña. El origen exacto de Render está autorizado.
 - Inicialización real de Google Sheets, carpetas privadas y ambos formularios completada. Copia privada de la ficha original creada desde el PDF publicado, cuyo hash coincide con el documento de referencia.

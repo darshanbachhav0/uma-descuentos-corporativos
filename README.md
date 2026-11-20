@@ -1,6 +1,6 @@
 # UMA · Sistema de descuentos corporativos
 
-Sistema implementado para Google Forms → Apps Script → Google Sheets/Drive, con sitio estático en **Render**, panel de Tesorería en español y notificaciones enviadas exclusivamente bajo la autorización de **darshanbachhavapp@gmail.com**.
+Sistema implementado para Google Forms → Apps Script → Google Sheets/Drive, con sitio estático en **Render**, panel de Tesorería en español y notificaciones enviadas exclusivamente bajo la autorización de **contactotesoreriauma@gmail.com**.
 
 Despliegue activo: [Tesorería](https://uma-descuentos-corporativos.onrender.com/) · [Formulario de estudiantes](https://docs.google.com/forms/d/e/1FAIpQLSctyzIVBLHoGM49EmwZ_DWoCzena7yeQijPKxjr5uCj75d7mw/viewform) · [Google Sheets](https://docs.google.com/spreadsheets/d/1MUgKljFRYaYOlv9gHdnnOlZ-kgEIDYAuHDm9O6hpcnQ/edit). Tesorería usa usuario y contraseña; los documentos se revisan y descargan dentro del panel. Sheets y Drive directos siguen siendo recursos privados del propietario. Consulte el [estado verificado](docs/DEPLOYMENT_STATUS.md).
 
@@ -21,7 +21,7 @@ No se necesitan paquetes npm para compilar o probar. La vista local en `http://1
 
 El archivo **`dist/Code.gs` contiene todo el backend, el panel y el logotipo**, listo para pegar en un único archivo del editor de Apps Script. No es necesario crear archivos HTML manualmente. La alternativa con clasp usa `dist/` y el manifiesto incluido.
 
-1. Lea [las instrucciones de instalación](docs/INSTALLATION.md).
+1. Lea [las instrucciones de instalación](docs/INSTALLATION.md). Para pasar el sistema a la cuenta contactotesoreriauma@gmail.com, siga [CAMBIO_DE_CUENTA.md](docs/CAMBIO_DE_CUENTA.md).
 2. Ejecute `initializeProject` desde la cuenta propietaria y autorice Google.
 3. Configure el PDF original y las cuatro preguntas nativas de carga (dos por formulario).
 4. Ejecute `finalizeSetup`, revise permisos, configure el acceso de gestión y despliegue el servicio **como propietario, con acceso anónimo al servicio y autenticación propia en cada operación** y complete las pruebas reales.

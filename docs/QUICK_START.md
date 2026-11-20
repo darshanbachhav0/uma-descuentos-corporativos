@@ -36,6 +36,6 @@ This is an illustration, not a production application or an instruction to send 
 - Treasury opens **Revisar** and sees that the socioeconomic form is unsigned. Select **COMPLETADO — CON OBSERVACIÓN**, choose **Falta firma del estudiante**, enter “La ficha socioeconómica no contiene su firma” and instructions such as “Firme la ficha y adjunte nuevamente todas las páginas y sus sustentos.” Confirm the notification.
 - The owner’s email trigger sends the observation to María’s registered email, with her personal correction link. She uploads the corrected complete file set through that link. The original application ID is retained; a new document revision appears.
 - Treasury reviews the correction and **actually enters the discount in SIGU**. Then choose **COMPLETADO — APROBADO**, tick the SIGU confirmation, optionally add the registration reference, and confirm.
-- The status becomes **Aplicada en SIGU**. The approval email is queued from **darshanbachhavapp@gmail.com** to the email from María’s form, using the requested confirmation text and payment instructions.
+- The status becomes **Aplicada en SIGU**. The approval email is queued from **contactotesoreriauma@gmail.com** to the email from María’s form, using the requested confirmation text and payment instructions.
 
 Email processing normally runs about once a minute, subject to Google quotas and availability. “Aceptado por Google” records acceptance by MailApp, not proof of delivery or reading. Check spam and the email history if a student has not received a message.

@@ -47,7 +47,7 @@ No use la opción «editar respuesta» como mecanismo de corrección: no se depe
 - PDF original descargable desde una cuenta estudiante.
 - Aviso de privacidad aprobado por UMA.
 - Inicio de sesión de Google y espacio de Drive disponibles.
-- Formularios y cargas en My Drive de darshanbachhavapp@gmail.com, no en una unidad compartida.
+- Formularios y cargas en My Drive de contactotesoreriauma@gmail.com, no en una unidad compartida.
 - Nuevo envío real genera un expediente y copias privadas de los documentos.
 
 Después de renombrar o sustituir preguntas, ejecute `finalizeSetup` para regenerar los mapas. No borre preguntas que ya tengan respuestas históricas sin planificar una migración.
