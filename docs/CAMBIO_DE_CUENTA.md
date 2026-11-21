@@ -46,7 +46,7 @@ En el editor, ejecute `initializeProject` y autorice los permisos con contactote
 
 La función crea en el Drive de la nueva cuenta:
 - la hoja **UMA — Control de Descuentos Corporativos**
-- la carpeta privada **UMA_DESCUENTOS_CORPORATIVOS**, con su subcarpeta Exportaciones
+- la carpeta privada **UMA_DESCUENTOS_CORPORATIVOS** (los Excel exportados se descargan directamente; no se guardan en Drive)
 
 Además, conecta las copias de los formularios.
 

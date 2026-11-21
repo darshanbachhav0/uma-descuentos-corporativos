@@ -1,5 +1,12 @@
 function approvedEmail_(a) {
-  return {subject:'Corporate discount application confirmation',body:'Dear student '+a.name+',\n\nWe inform you that your corporate discount has already been entered into SIGU.\n\nTo maintain the discount benefit, you must pay up to one day before the installment due date according to the payment schedule.\n\nSIGU: https://sigu.uma.edu.pe/alumno/entrar\n\nPayments can be made through SIGU, Yape, or debit/credit card. For BBVA channels, BCP app, Interbank, or Yape, the discount will be reflected within approximately 30 minutes.\n\nAtentamente,\nÁrea de Tesorería\nUniversidad María Auxiliadora'};
+  // Text approved by Tesorería UMA (Spanish). The sender name is "Tesorería UMA".
+  return {subject:'Confirmación de aplicación de descuento corporativo',body:'Estimado(a) estudiante '+a.name+':\n\n'+
+    'Le informamos que su descuento corporativo ya fue ingresado al SIGU.\n'+
+    '📅 Para mantener el beneficio del descuento, tenga en cuenta que debe realizar el pago hasta un día antes de la fecha de vencimiento de la cuota, según el cronograma de pagos.\n'+
+    'Puede ingresar a su plataforma SIGU a través del siguiente enlace: https://sigu.uma.edu.pe/alumno/entrar\n'+
+    '💳 Puede realizar sus pagos a través de la plataforma SIGU, mediante Yape o con tarjeta de débito o crédito.\n'+
+    '🏦 Asimismo, si realiza el pago a través de los canales del BBVA (app, agentes o banca por internet), la app del BCP, Interbank o Yape, el descuento se verá reflejado en un plazo aproximado de 30 minutos.\n\n'+
+    'Atentamente,\nTesorería UMA\nUniversidad María Auxiliadora'};
 }
 /** Asks the student to send the same application form again; the new submission joins this application by email. */
 function observedEmail_(a,link) {

@@ -39,7 +39,7 @@ En el selector de funciones elija `initializeProject` y pulse **Run / Ejecutar**
 La función crea de forma repetible:
 
 - Libro **UMA — Control de Descuentos Corporativos**, tablas y formato.
-- Carpeta privada **UMA_DESCUENTOS_CORPORATIVOS** y subcarpeta Exportaciones.
+- Carpeta privada **UMA_DESCUENTOS_CORPORATIVOS**. Los Excel exportados se descargan directamente y la ficha PDF se publica en el sitio de Render; no se guardan copias en Drive.
 - Formulario inicial y formulario de subsanación, inicialmente cerrados.
 - Campos de texto/selección, sección condicional Otro, aviso de privacidad y confirmación de firma.
 - Clave secreta de subsanación en Script Properties.
