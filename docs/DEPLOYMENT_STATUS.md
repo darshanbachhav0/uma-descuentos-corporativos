@@ -6,16 +6,16 @@ Registro actualizado: 20 de noviembre de 2026 (America/Lima).
 
 - [Panel de Tesorería](https://uma-descuentos-corporativos.onrender.com/)
 - La ruta `/estudiantes` redirige al formulario inicial; no hay un portal estudiantil adicional.
-- [Formulario inicial publicado](https://docs.google.com/forms/d/e/1FAIpQLSctyzIVBLHoGM49EmwZ_DWoCzena7yeQijPKxjr5uCj75d7mw/viewform)
-- [Registro de Google Sheets](https://docs.google.com/spreadsheets/d/1MUgKljFRYaYOlv9gHdnnOlZ-kgEIDYAuHDm9O6hpcnQ/edit)
-- [Carpeta privada del sistema](https://drive.google.com/drive/folders/1DrFiMDuw2u1NZI0UeLsd5B7qmbEsQ8N6)
-- [Configuración del propietario](https://script.google.com/macros/s/AKfycbzcfr3022ozNaD3MuMWis-DFek-jBHomxis8IKwQ94bFs_CGzFnr1pxLlR5C5ac860CBA/exec?mode=setup)
+- [Formulario inicial publicado](https://docs.google.com/forms/d/e/1FAIpQLSdXzHGZ1UqO7q6EiVgwT5uFB1mfJvcTfTGhFjXMer7mlUV2UA/viewform)
+- [Registro de Google Sheets](https://docs.google.com/spreadsheets/d/13cc5-E8kXYyMIY_Upkh3i1OFkIDa5zTf2DIGT9Zujvg/edit)
+- Carpeta privada del sistema: **UMA_DESCUENTOS_CORPORATIVOS** en Mi unidad de contactotesoreriauma@gmail.com
+- [Configuración del propietario](https://script.google.com/macros/s/AKfycbztLMvgOrFsYi8rOu3A_to3rBEgnM0F2R0ZhMDMy3a3XaHJo-6n_jQlWDYGmEnFhWlC/exec?mode=setup)
 
 ## Configuración completada y comprobada
 
-- Cuenta propietaria y remitente autorizado: **contactotesoreriauma@gmail.com**. El cambio desde darshanbachhavapp@gmail.com se hace con [CAMBIO_DE_CUENTA.md](CAMBIO_DE_CUENTA.md); hasta completarlo, los enlaces de esta página corresponden a la instalación anterior. El destinatario se obtiene de cada solicitud; no hay destinatario estudiantil fijo.
+- Cuenta propietaria y remitente autorizado: **contactotesoreriauma@gmail.com**. Migrada desde darshanbachhavapp@gmail.com el 20 de noviembre de 2026 siguiendo [CAMBIO_DE_CUENTA.md](CAMBIO_DE_CUENTA.md). El destinatario se obtiene de cada solicitud; no hay destinatario estudiantil fijo.
 - Render: **Bachhav Darshan's Workspace**, servicio `srv-dbvpg7l9fdbs73bju90g`, repositorio privado `darshanbachhav0/uma-descuentos-corporativos`. El despliegue inicial se observó en estado `live`; las actualizaciones de main se despliegan automáticamente.
-- Apps Script: proyecto `1TiZZM47BuA-iPRfS09rcD22BoFUNIUqTeu3lwS9VhbR1OT9rnTWJBVIa`, versión **10**, servicio ejecutando como propietario con acceso anónimo y autenticación propia por usuario/contraseña. El origen exacto de Render está autorizado.
+- Apps Script: proyecto `1MiGL9KImCbpviHB3jt7JHeA-58uAYKk2JfOXxxG10zDHxoB8chckuXRr` (cuenta contactotesoreriauma@gmail.com), versión **3**, servicio ejecutando como propietario con acceso anónimo y autenticación propia por usuario/contraseña. El origen exacto de Render está autorizado.
 - Inicialización real de Google Sheets, carpetas privadas y ambos formularios completada. Copia privada de la ficha original creada desde el PDF publicado, cuyo hash coincide con el documento de referencia.
 - Cuatro preguntas nativas de carga creadas en la interfaz de Google Forms: ficha firmada y documentos sustentatorios en cada formulario. Son obligatorias, admiten PDF/imagen y hasta cinco archivos de 10 MB por pregunta; el backend restringe a PDF/JPG/PNG y diez archivos en total.
 - Formulario inicial y formulario de subsanación publicados y aceptando respuestas. El formulario inicial conserva los datos personales, 14 escuelas, nueve convenios y la especificación obligatoria de Otro. La ficha se descarga y completa manualmente.

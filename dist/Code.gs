@@ -936,7 +936,7 @@ function setupSpreadsheet_() {
 }
 function linkResponseDestination_(form,spreadsheetId){
   var destination='';
-  try{destination=form.getDestinationId();}catch(error){assert_(/no response destination/i.test(error.message),error.message);}
+  try{destination=form.getDestinationId();}catch(error){/* Google localizes this message (English, Spanish, ...): "no response destination" / "ningún destino de respuesta". */assert_(/no response destination|destino de respuesta/i.test(error.message),error.message);}
   if(destination)assert_(destination===spreadsheetId,'El formulario ya tiene otro destino de respuestas. Revíselo antes de cambiarlo.');
   else form.setDestination(FormApp.DestinationType.SPREADSHEET,spreadsheetId);
 }
@@ -984,7 +984,8 @@ function health_() {
   ['SPREADSHEET_ID','ROOT_DRIVE_FOLDER_ID','EXPORT_FOLDER_ID','GOOGLE_FORM_ID','CORRECTION_FORM_ID','TEMPLATE_PDF_FILE_ID','CORRECTION_SECRET'].forEach(function(k){if(!c[k])issues.push('Falta '+k);});
   ['GOOGLE_FORM_ID','CORRECTION_FORM_ID'].forEach(function(k){if(!c[k])return;try{
     var f=FormApp.openById(c[k]),m=JSON.parse(c[k==='GOOGLE_FORM_ID'?'QUESTION_MAP':'CORRECTION_QUESTION_MAP']||'{}');
-    var required=k==='GOOGLE_FORM_ID'?['institutionalEmail','personalEmail','identityType','identityNumber','name','school','discount','otherDiscount','signed','consent']:['applicationId','token','institutionalEmail','identityNumber','signed','consent'];
+    // "Otro convenio (especifique)" is optional: the form may offer "Otro" without that follow-up question.
+    var required=k==='GOOGLE_FORM_ID'?['institutionalEmail','personalEmail','identityType','identityNumber','name','school','discount','signed','consent']:['applicationId','token','institutionalEmail','identityNumber','signed','consent'];
     required.forEach(function(field){if(!m[field]||!f.getItemById(Number(m[field])))issues.push(k+': falta pregunta '+UMA.labels[field]);});
     ['socioeconomic','supporting'].forEach(function(field){var item=m[field]&&f.getItemById(Number(m[field]));if(!item||String(item.getType())!=='FILE_UPLOAD')issues.push(k+': falta carga de archivos '+UMA.labels[field]);});
     forms.push({type:k,url:f.getPublishedUrl(),editUrl:f.getEditUrl(),accepting:f.isAcceptingResponses()});
@@ -1023,6 +1024,14 @@ function configureWorkspace(input){
     c=config_();return {origin:input.origin,templateFileId:c.TEMPLATE_PDF_FILE_ID||'',templateDownload:c.TEMPLATE_PDF_URL,applicationFormUrl:FormApp.openById(c.GOOGLE_FORM_ID).getPublishedUrl(),correctionFormEditUrl:FormApp.openById(c.CORRECTION_FORM_ID).getEditUrl(),applicationFormEditUrl:FormApp.openById(c.GOOGLE_FORM_ID).getEditUrl(),next:'Añada las preguntas nativas de carga en ambos formularios y ejecute finalizeSetup.'};
   });
 }
+/**
+ * Owner action for the Apps Script editor (no arguments): connects the production Render site and imports the
+ * original PDF it publishes. Same as the setup page's form, for when that page cannot open (e.g. several Google
+ * accounts signed in to the browser).
+ */
+/** Owner action for the Apps Script editor: turns on student emails (same as EMAIL_NOTIFICATION_ENABLED=true). */
+function enableEmailNotifications(){setupOwner_();properties_().setProperty('EMAIL_NOTIFICATION_ENABLED','true');markMailQueue_();audit_(UMA.owner,'SETTINGS_UPDATED','','Notificaciones activadas');console.log('EMAIL_NOTIFICATION_ENABLED=true');return true;}
+function connectRenderSite(){var r=configureWorkspace({origin:'https://uma-descuentos-corporativos.onrender.com'});console.log(JSON.stringify(r,null,2));return r;}
 function allowedOriginInput_(origin){return typeof origin==='string'&&/^https:\/\/[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d+)?$/i.test(origin);}
 function privacyNotice_(){return config_().PRIVACY_NOTICE||'Sus datos y documentos serán revisados por el Área de Tesorería de la Universidad María Auxiliadora para gestionar esta solicitud de descuento corporativo. Los documentos se mantienen con acceso restringido al personal autorizado. Consulte a UMA sobre el tratamiento, conservación de sus datos y ejercicio de sus derechos.';}
 
