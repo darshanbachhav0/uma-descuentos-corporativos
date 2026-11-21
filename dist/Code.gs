@@ -430,7 +430,14 @@ function statistics_(rows, emails) {
 
 // --- Email.gs ---
 function approvedEmail_(a) {
-  return {subject:'Corporate discount application confirmation',body:'Dear student '+a.name+',\n\nWe inform you that your corporate discount has already been entered into SIGU.\n\nTo maintain the discount benefit, you must pay up to one day before the installment due date according to the payment schedule.\n\nSIGU: https://sigu.uma.edu.pe/alumno/entrar\n\nPayments can be made through SIGU, Yape, or debit/credit card. For BBVA channels, BCP app, Interbank, or Yape, the discount will be reflected within approximately 30 minutes.\n\nAtentamente,\nÁrea de Tesorería\nUniversidad María Auxiliadora'};
+  // Text approved by Tesorería UMA (Spanish). The sender name is "Tesorería UMA".
+  return {subject:'Confirmación de aplicación de descuento corporativo',body:'Estimado(a) estudiante '+a.name+':\n\n'+
+    'Le informamos que su descuento corporativo ya fue ingresado al SIGU.\n'+
+    '📅 Para mantener el beneficio del descuento, tenga en cuenta que debe realizar el pago hasta un día antes de la fecha de vencimiento de la cuota, según el cronograma de pagos.\n'+
+    'Puede ingresar a su plataforma SIGU a través del siguiente enlace: https://sigu.uma.edu.pe/alumno/entrar\n'+
+    '💳 Puede realizar sus pagos a través de la plataforma SIGU, mediante Yape o con tarjeta de débito o crédito.\n'+
+    '🏦 Asimismo, si realiza el pago a través de los canales del BBVA (app, agentes o banca por internet), la app del BCP, Interbank o Yape, el descuento se verá reflejado en un plazo aproximado de 30 minutos.\n\n'+
+    'Atentamente,\nTesorería UMA\nUniversidad María Auxiliadora'};
 }
 /** Asks the student to send the same application form again; the new submission joins this application by email. */
 function observedEmail_(a,link) {
@@ -894,7 +901,6 @@ function initializeProject() {
     if(!c.SPREADSHEET_ID)p.setProperty('SPREADSHEET_ID',SpreadsheetApp.create('UMA — Control de Descuentos Corporativos').getId());
     if(!c.ROOT_DRIVE_FOLDER_ID)p.setProperty('ROOT_DRIVE_FOLDER_ID',DriveApp.createFolder('UMA_DESCUENTOS_CORPORATIVOS').getId());
     c=config_();
-    if(!c.EXPORT_FOLDER_ID)p.setProperty('EXPORT_FOLDER_ID',DriveApp.getFolderById(c.ROOT_DRIVE_FOLDER_ID).createFolder('Exportaciones').getId());
     setupSpreadsheet_();
     if(!c.GOOGLE_FORM_ID)p.setProperty('GOOGLE_FORM_ID',createForm_(false).getId());
     if(!c.CORRECTION_FORM_ID)p.setProperty('CORRECTION_FORM_ID',createForm_(true).getId());
@@ -969,19 +975,19 @@ function mapQuestions_(form, correction) {
 }
 /** Run after adding native file-upload questions and configuring original PDF. */
 function finalizeSetup() {
-  owner_();var c=config_();assert_(c.TEMPLATE_PDF_FILE_ID,'Configure TEMPLATE_PDF_FILE_ID con el PDF original');
-  var pdf=DriveApp.getFileById(c.TEMPLATE_PDF_FILE_ID);assert_(pdf.getMimeType()==='application/pdf','La ficha original debe ser PDF');
+  owner_();var c=config_();assert_(c.TEMPLATE_PDF_URL||c.TEMPLATE_PDF_FILE_ID,'Conecte el sitio (connectRenderSite) para publicar la ficha socioeconómica');
   ['GOOGLE_FORM_ID','CORRECTION_FORM_ID'].forEach(function(k){
     var f=FormApp.openById(c[k]),map=mapQuestions_(f,k==='CORRECTION_FORM_ID');
     if(map.consent)f.getItemById(Number(map.consent)).asCheckboxItem().setHelpText(privacyNotice_());
-    var download=c.TEMPLATE_PDF_URL||'https://drive.google.com/uc?export=download&id='+encodeURIComponent(pdf.getId());
+    var download=c.TEMPLATE_PDF_URL||'https://drive.google.com/uc?export=download&id='+encodeURIComponent(c.TEMPLATE_PDF_FILE_ID);
     f.getItems(FormApp.ItemType.SECTION_HEADER).forEach(function(i){if(i.getTitle()==='Ficha Socioeconómica 2027-I')i.asSectionHeaderItem().setHelpText('DESCARGAR FICHA SOCIOECONÓMICA 2027-I: '+download+'\nLlénela MANUALMENTE, firme y cargue el PDF/JPG/PNG. Desde el celular use fotografías claras de todas las páginas.');});
   });
   var health=health_();assert_(health.ready,health.issues.join('\n'));installTriggers();console.log(JSON.stringify(health));return health;
 }
 function health_() {
   var c=config_(),issues=[],forms=[];
-  ['SPREADSHEET_ID','ROOT_DRIVE_FOLDER_ID','EXPORT_FOLDER_ID','GOOGLE_FORM_ID','CORRECTION_FORM_ID','TEMPLATE_PDF_FILE_ID','CORRECTION_SECRET'].forEach(function(k){if(!c[k])issues.push('Falta '+k);});
+  ['SPREADSHEET_ID','ROOT_DRIVE_FOLDER_ID','GOOGLE_FORM_ID','CORRECTION_FORM_ID','CORRECTION_SECRET'].forEach(function(k){if(!c[k])issues.push('Falta '+k);});
+  if(!c.TEMPLATE_PDF_URL&&!c.TEMPLATE_PDF_FILE_ID)issues.push('Falta la ficha socioeconómica: ejecute connectRenderSite');
   ['GOOGLE_FORM_ID','CORRECTION_FORM_ID'].forEach(function(k){if(!c[k])return;try{
     var f=FormApp.openById(c[k]),m=JSON.parse(c[k==='GOOGLE_FORM_ID'?'QUESTION_MAP':'CORRECTION_QUESTION_MAP']||'{}');
     // "Otro convenio (especifique)" is optional: the form may offer "Otro" without that follow-up question.
@@ -990,7 +996,7 @@ function health_() {
     ['socioeconomic','supporting'].forEach(function(field){var item=m[field]&&f.getItemById(Number(m[field]));if(!item||String(item.getType())!=='FILE_UPLOAD')issues.push(k+': falta carga de archivos '+UMA.labels[field]);});
     forms.push({type:k,url:f.getPublishedUrl(),editUrl:f.getEditUrl(),accepting:f.isAcceptingResponses()});
   }catch(e){issues.push(k+': '+e.message);}});
-  try{['ROOT_DRIVE_FOLDER_ID','EXPORT_FOLDER_ID'].forEach(function(k){if(c[k])assert_(DriveApp.getFolderById(c[k]).getSharingAccess()===DriveApp.Access.PRIVATE,'Carpeta '+k+' debe estar restringida');});}catch(e){issues.push(e.message);}
+  try{['ROOT_DRIVE_FOLDER_ID'].forEach(function(k){if(c[k])assert_(DriveApp.getFolderById(c[k]).getSharingAccess()===DriveApp.Access.PRIVATE,'Carpeta '+k+' debe estar restringida');});}catch(e){issues.push(e.message);}
   return {ready:issues.length===0,issues:issues,forms:forms,owner:UMA.owner,emailEnabled:c.EMAIL_NOTIFICATION_ENABLED==='true',triggers:ScriptApp.getProjectTriggers().map(function(t){return {handler:t.getHandlerFunction(),id:t.getUniqueId()};}),quota:MailApp.getRemainingDailyQuota(),spreadsheet:c.SPREADSHEET_ID?'https://docs.google.com/spreadsheets/d/'+c.SPREADSHEET_ID+'/edit':''};
 }
 function runSystemHealthCheck(){if(UMA_REQUEST_AUTH_)reviewer_(true);else setupOwner_();return health_();}
@@ -1012,13 +1018,15 @@ function configureWorkspace(input){
     var p=properties_(),c=config_();assert_(c.ROOT_DRIVE_FOLDER_ID,'Inicialice los recursos primero');
     p.setProperty('FRONTEND_ORIGINS',input.origin);p.setProperty('TEMPLATE_PDF_URL',input.origin+'/ficha-socioeconomica-2027-I.pdf');
     if(input.template||!c.TEMPLATE_PDF_FILE_ID){
-      var bytes;
+      var bytes,store=!!input.template;
       if(input.template){assert_(typeof input.template.data==='string'&&input.template.data.length<7*1024*1024,'Archivo demasiado grande');bytes=Utilities.base64Decode(input.template.data);}
       else {var response=UrlFetchApp.fetch(input.origin+'/ficha-socioeconomica-2027-I.pdf',{muteHttpExceptions:true});assert_(response.getResponseCode()===200,'No se pudo importar el PDF original publicado en Render');bytes=response.getBlob().getBytes();}
       assert_(bytes.length>=5&&bytes.length<=5*1024*1024&&String.fromCharCode.apply(null,bytes.slice(0,5))==='%PDF-','El archivo no es un PDF válido de hasta 5 MB');
-      var folder=restrictedFolder_(DriveApp.getFolderById(c.ROOT_DRIVE_FOLDER_ID),'Plantilla_original');
-      var file=folder.createFile(Utilities.newBlob(bytes,'application/pdf','Ficha_Socioeconomica_2027-I_original.pdf'));
-      file.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.NONE);p.setProperty('TEMPLATE_PDF_FILE_ID',file.getId());
+      if(store){
+        var folder=restrictedFolder_(DriveApp.getFolderById(c.ROOT_DRIVE_FOLDER_ID),'Plantilla_original');
+        var file=folder.createFile(Utilities.newBlob(bytes,'application/pdf','Ficha_Socioeconomica_2027-I_original.pdf'));
+        file.setSharing(DriveApp.Access.PRIVATE,DriveApp.Permission.NONE);p.setProperty('TEMPLATE_PDF_FILE_ID',file.getId());
+      }
     }
     audit_(UMA.owner,'WORKSPACE_CONFIGURED','','Origen de Render y ficha original');
     c=config_();return {origin:input.origin,templateFileId:c.TEMPLATE_PDF_FILE_ID||'',templateDownload:c.TEMPLATE_PDF_URL,applicationFormUrl:FormApp.openById(c.GOOGLE_FORM_ID).getPublishedUrl(),correctionFormEditUrl:FormApp.openById(c.CORRECTION_FORM_ID).getEditUrl(),applicationFormEditUrl:FormApp.openById(c.GOOGLE_FORM_ID).getEditUrl(),next:'Añada las preguntas nativas de carga en ambos formularios y ejecute finalizeSetup.'};
@@ -1032,6 +1040,23 @@ function configureWorkspace(input){
 /** Owner action for the Apps Script editor: turns on student emails (same as EMAIL_NOTIFICATION_ENABLED=true). */
 function enableEmailNotifications(){setupOwner_();properties_().setProperty('EMAIL_NOTIFICATION_ENABLED','true');markMailQueue_();audit_(UMA.owner,'SETTINGS_UPDATED','','Notificaciones activadas');console.log('EMAIL_NOTIFICATION_ENABLED=true');return true;}
 function connectRenderSite(){var r=configureWorkspace({origin:'https://uma-descuentos-corporativos.onrender.com'});console.log(JSON.stringify(r,null,2));return r;}
+/**
+ * Owner action: sends to the Drive trash the folders the platform no longer uses ("Exportaciones": Excel exports
+ * download to the browser; "Plantilla_original": the form links the PDF on the website) and forgets their IDs.
+ * Recoverable from the trash for 30 days. The system spreadsheet is never touched: it holds the platform's data.
+ */
+function removeUnusedDriveItems(){
+  setupOwner_();
+  return locked_(function(){
+    var p=properties_(),c=config_(),report={trashed:[],kept:[]};
+    assert_(c.TEMPLATE_PDF_URL,'Primero conecte el sitio con connectRenderSite: el formulario necesita el PDF publicado.');
+    if(c.EXPORT_FOLDER_ID){try{var ex=DriveApp.getFolderById(c.EXPORT_FOLDER_ID);ex.setTrashed(true);report.trashed.push(ex.getName());}catch(e){report.kept.push('Exportaciones: '+e.message);}p.deleteProperty('EXPORT_FOLDER_ID');}
+    var it=DriveApp.getFolderById(c.ROOT_DRIVE_FOLDER_ID).getFoldersByName('Plantilla_original');
+    while(it.hasNext()){var t=it.next();t.setTrashed(true);report.trashed.push(t.getName());}
+    if(c.TEMPLATE_PDF_FILE_ID)p.deleteProperty('TEMPLATE_PDF_FILE_ID');
+    audit_(UMA.owner,'DRIVE_CLEANED','',JSON.stringify(report));console.log(JSON.stringify(report,null,2));return report;
+  });
+}
 function allowedOriginInput_(origin){return typeof origin==='string'&&/^https:\/\/[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?(?::\d+)?$/i.test(origin);}
 function privacyNotice_(){return config_().PRIVACY_NOTICE||'Sus datos y documentos serán revisados por el Área de Tesorería de la Universidad María Auxiliadora para gestionar esta solicitud de descuento corporativo. Los documentos se mantienen con acceso restringido al personal autorizado. Consulte a UMA sobre el tratamiento, conservación de sus datos y ejercicio de sus derechos.';}
 
